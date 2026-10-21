@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TokuControl</AssemblyName>
+    <Version>0.2.1</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TokuControl.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Authors>Tokumaru Labs</Authors>
+    <Copyright>Copyright (c) 2026 Tokumaru Labs</Copyright>
+    <RepositoryUrl>https://github.com/tokumaru-labs/toku-control</RepositoryUrl>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\CrtDisplay.ps" />
+    <Content Include="runtime-license\LICENSE.txt" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <Content Include="runtime-license\ThirdPartyNotices.txt" Link="ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <Content Include="LICENSE;LICENSE-NET-EXCEPTION;THIRD-PARTY.md;README.md;README.ja.md;START-HERE.txt;VERIFICATION.md;CHANGELOG.md" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="runtime-license\DOTNET-MIT-LICENSE.txt;runtime-license\WINDOWS-DESKTOP-LICENSE.txt;runtime-license\WINDOWS-SDK-LICENSE.html;runtime-license\NETCORE-THIRD-PARTY-NOTICES.txt" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="docs\*.png" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

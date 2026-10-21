@@ -1,0 +1,19 @@
+TOKU CONTROL v0.2.1 - Tokumaru Labs
+
+Extract this entire folder, then run TokuControl.exe.
+Windows x64. The .NET runtime is included. No administrator rights required.
+This release is unsigned; there is no installer or automatic updater.
+
+Read README.md or README.ja.md for controls and limitations.
+Read LICENSE, LICENSE-NET-EXCEPTION and THIRD-PARTY.md for license terms.
+The bundled Microsoft components retain their own license terms and notices.
+
+Downloads and matching source:
+https://github.com/tokumaru-labs/toku-control/releases/tag/v0.2.1
+
+SHOW ALL: main console with three modules stacked on the right.
+Drag the main title bar to move visible modules together.
+SYSTEM PULSE: open SYSTEM / DISPLAYS > for PC and monitor details.
+
+Settings: %LOCALAPPDATA%\TokumaruLabs\TokuControl\settings.json
+Exiting does not undo Windows volume or default-output changes.

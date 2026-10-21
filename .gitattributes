@@ -1,0 +1,3 @@
+* text=auto
+# Preserve the original Microsoft redistributable license notices verbatim.
+runtime-license/* -text -whitespace
