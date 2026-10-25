@@ -100,7 +100,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     public long PeakSamples { get; private set; }
     public long SystemSamples { get; private set; }
 
-    public ConsoleWindow(SettingsStore store, bool preview) : base("main", "TOKU CONTROL v0.2.1 -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
+    public ConsoleWindow(SettingsStore store, bool preview) : base("main", "TOKU CONTROL v0.2.2 -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
     {
         this.store = store; this.preview = preview; settings = store.Load();
         routes = preview ? new PreviewOutputRoutes() : new WindowsOutputRoutes();
@@ -257,8 +257,24 @@ public sealed partial class ConsoleWindow : RetroWindow
     UIElement BuildLaunch()
     {
         var p = Retro.Col(Retro.Label("FIXED LOCAL TARGETS", Retro.Dim, 10));
+        var apps = new UniformGrid { Columns = 3 };
         foreach (string target in new[] { "EXPLORER", "NOTEPAD", "CALC" })
-            p.Children.Add(Retro.Button(target, target + " を起動", () => Launch(target)));
+            apps.Children.Add(Retro.Button(target, target + " を起動", () => Launch(target)));
+        p.Children.Add(apps);
+        var windowsTools = new UniformGrid { Columns = 2 };
+        foreach (var (target, hint) in new[]
+        {
+            ("TASK MANAGER", "タスク マネージャーを開く"),
+            ("CONTROL PANEL", "従来のコントロール パネルを、すべての項目の一覧で開く"),
+            ("TASK SCHEDULER", "Windowsのタスク スケジューラを開く"),
+            ("STARTUP APPS", "Windows設定の「アプリ > スタートアップ」を開く")
+        })
+        {
+            var button = Retro.Button(target, hint, () => Launch(target));
+            button.FontSize = 11;
+            windowsTools.Children.Add(button);
+        }
+        p.Children.Add(windowsTools);
         p.Children.Add(Retro.Label("NO SHELL INPUT\nNO REMOTE SCRIPTS", Retro.Dim, 9)); return p;
     }
     UIElement BuildModules() => Retro.Col(
@@ -280,8 +296,21 @@ public sealed partial class ConsoleWindow : RetroWindow
         try
         {
             if (preview) { Log("INFO", "preview / launcher disabled"); return; }
-            string executable = target == "EXPLORER" ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe") : Path.Combine(Environment.SystemDirectory, target == "NOTEPAD" ? "notepad.exe" : "calc.exe");
-            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true }); Log("OK", target.ToLowerInvariant() + " launch request accepted");
+            string explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            ProcessStartInfo start = target switch
+            {
+                "EXPLORER" => new(explorer),
+                "NOTEPAD" => new(Path.Combine(Environment.SystemDirectory, "notepad.exe")),
+                "CALC" => new(Path.Combine(Environment.SystemDirectory, "calc.exe")),
+                "TASK MANAGER" => new(Path.Combine(Environment.SystemDirectory, "Taskmgr.exe")),
+                "CONTROL PANEL" => new(explorer) { ArgumentList = { "shell:ControlPanelFolder" } },
+                "TASK SCHEDULER" => new(Path.Combine(Environment.SystemDirectory, "mmc.exe")) { ArgumentList = { Path.Combine(Environment.SystemDirectory, "taskschd.msc") } },
+                "STARTUP APPS" => new("ms-settings:startupapps"),
+                _ => throw new ArgumentOutOfRangeException(nameof(target))
+            };
+            start.UseShellExecute = true;
+            using var process = Process.Start(start);
+            Log("OK", target.ToLowerInvariant() + " launch request accepted");
         }
         catch (Exception ex) { Log("ERROR", "launch failed / " + ex.GetType().Name); }
     }
@@ -668,6 +697,20 @@ public sealed partial class ConsoleWindow : RetroWindow
             test["clockPositionRestored"] = Math.Abs(beforeClose.X - afterOpen.X) < 2 && Math.Abs(beforeClose.Y - afterOpen.Y) < 2;
             modules["meter"].Close(); ShowModule("meter"); test["meterReopen"] = modules.ContainsKey("meter");
             SelectSection("audio"); test["navigationFilters"] = panels["audio"].IsVisible && panels["devices"].Visibility == Visibility.Collapsed; SelectSection("local");
+            bool LauncherFits()
+            {
+                UpdateLayout();
+                var panel = panels["launcher"];
+                var content = new Rect(1, 25, panel.ActualWidth - 2, panel.ActualHeight - 26);
+                var buttons = Descendants<Button>(panel).ToArray();
+                var bounds = buttons.Select(b => new Rect(b.TranslatePoint(new Point(), panel), b.RenderSize)).ToArray();
+                return buttons.Length == 7 && buttons.All(b => b.IsVisible && b.ActualHeight >= 26)
+                    && bounds.All(content.Contains)
+                    && bounds.SelectMany((a, i) => bounds.Skip(i + 1).Select(b => !a.IntersectsWith(b))).All(v => v);
+            }
+            test["launcherHomeButtonsFit"] = LauncherFits();
+            SelectSection("launcher"); test["launcherExpandedButtonsFit"] = LauncherFits();
+            Capture(this, Path.Combine(directory, "launcher.png")); SelectSection("local");
             var meter = modules["meter"]; meter.Hide(); var before = PeakSamples; await Task.Delay(300); test["hiddenMeterStopsSampling"] = before == PeakSamples; meter.Show();
             WindowState = WindowState.Minimized; var systemBefore = SystemSamples; await Task.Delay(1100); test["minimizedStopsSystemSampling"] = systemBefore == SystemSamples; WindowState = WindowState.Normal;
             test["outputListRead"] = outputSelect.Items.Count == outputs.Length;
@@ -683,18 +726,21 @@ public sealed partial class ConsoleWindow : RetroWindow
                 test["previewOutputRestoresSavedLevel"] = state == original;
                 Capture(this, Path.Combine(directory, "preview-audio-operation.png"));
             }
+            bool launcherScaledFits = true;
             foreach (double scale in new[] { 1.25, 1.5 })
             {
                 // This is a rendering scale check, not a claim that Windows DPI changed.
                 Surface.LayoutTransform = new ScaleTransform(scale, scale); Width = 1080 * scale; Height = 740 * scale; UpdateLayout(); await Task.Delay(100);
+                launcherScaledFits &= LauncherFits();
                 Capture(this, Path.Combine(directory, "layout-scale-" + scale.ToString(CultureInfo.InvariantCulture) + ".png"));
             }
-            Surface.LayoutTransform = Transform.Identity; Width = 800; Height = 560; UpdateLayout(); await Task.Delay(100); Capture(this, Path.Combine(directory, "small-window.png")); Width = 1080; Height = 740;
+            test["launcherScaledButtonsFit"] = launcherScaledFits;
+            Surface.LayoutTransform = Transform.Identity; Width = 800; Height = 560; UpdateLayout(); await Task.Delay(100); Capture(this, Path.Combine(directory, "small-window.png")); test["launcherSmallButtonsFit"] = LauncherFits(); Width = 1080; Height = 740;
             var proc = Process.GetCurrentProcess(); var start = proc.TotalProcessorTime; var watch = Stopwatch.StartNew();
             await Task.Delay(2500); proc.Refresh(); test["meterVisibleCpuPercentOfMachine"] = (proc.TotalProcessorTime - start).TotalMilliseconds / watch.Elapsed.TotalMilliseconds / Environment.ProcessorCount * 100; test["workingSetMiB"] = proc.WorkingSet64 / 1048576.0;
             modules["meter"].Hide(); start = proc.TotalProcessorTime; watch.Restart(); await Task.Delay(2500); proc.Refresh(); test["meterHiddenCpuPercentOfMachine"] = (proc.TotalProcessorTime - start).TotalMilliseconds / watch.Elapsed.TotalMilliseconds / Environment.ProcessorCount * 100;
             test["peakSamples"] = PeakSamples; test["systemSamples"] = SystemSamples;
-            var required = new[] { "clockSingleton", "clockReopen", "clockPositionRestored", "meterReopen", "navigationFilters", "hiddenMeterStopsSampling", "minimizedStopsSystemSampling" };
+            var required = new[] { "clockSingleton", "clockReopen", "clockPositionRestored", "meterReopen", "navigationFilters", "hiddenMeterStopsSampling", "minimizedStopsSystemSampling", "launcherHomeButtonsFit", "launcherExpandedButtonsFit", "launcherScaledButtonsFit", "launcherSmallButtonsFit" };
             bool passed = required.All(key => test[key] is true) && test["systemPanelPassed"] is true && test["outputListRead"] is true && test["outputButtonFitsPanel"] is true && (!preview || new[] { "previewVolumeMute", "selectionDoesNotSwitch", "previewOutputSwitch", "previewOutputRestoresSavedLevel" }.All(key => test[key] is true));
             test["passed"] = passed;
             File.WriteAllText(Path.Combine(directory, "ui-checks.json"), JsonSerializer.Serialize(test, new JsonSerializerOptions { WriteIndented = true }));

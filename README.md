@@ -14,7 +14,7 @@ Blue title bars, green LCD digits and adjustable CRT effects are part of the int
 
 ## Run
 
-1. Download `TOKU-CONTROL-v0.2.1-win-x64.zip` from [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest).
+1. Download the Windows x64 ZIP from [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest).
 2. Extract the **entire** ZIP into a folder.
 3. Run `TokuControl.exe`. Keep its DLLs and license files beside it.
 
@@ -35,7 +35,7 @@ you trust; release assets include a SHA-256 checksum file.
 | Modules | `SHOW ALL`, `GRID` and `RECALL` place the three equal-width modules in a vertical column to the right of the main window. |
 | CRT | Live scanlines, bloom, RGB edge, noise and vignette. `RAW` disables effects; `RESTORE` restores their defaults. |
 | Drives | Optical-drive eject; tray close only where supported by the hardware. |
-| Launcher | Explorer, Notepad and Calculator. |
+| Launcher | Explorer, Notepad, Calculator, Task Manager, all classic Control Panel items, Task Scheduler and Startup Apps settings. The last four shortcuts are new in 0.2.2. |
 | Event log | Operation results, with explicit export using `SAVE`. |
 
 Drag the main title bar to move visible, non-minimized modules with it. Each

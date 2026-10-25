@@ -10,7 +10,7 @@
 
 ## 起動
 
-1. [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest)から `TOKU-CONTROL-v0.2.1-win-x64.zip` を取得。
+1. [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest)からWindows x64用のZIPを取得。
 2. ZIPを**すべて展開**。
 3. `TokuControl.exe` を起動。同じフォルダーのDLL・ライセンスファイルも保持してください。
 
@@ -29,7 +29,7 @@ Windows x64用、Windows 11で検証。.NETを同梱し、追加インストー�
 | MODULE CONTROL | `SHOW ALL` / `GRID` / `RECALL` で、メイン右に時計・メーター・CRT設定を同じ幅で縦積み。 |
 | CRT SETTINGS | 走査線・発光・色ずれ・ノイズ・減光を即時調整。`RAW` で効果OFF、`RESTORE` で初期値。 |
 | DRIVE CONTROL | 光学ドライブの排出。トレイを閉じる操作は機種依存。 |
-| QUICK LAUNCH | エクスプローラー・メモ帳・電卓を起動。 |
+| QUICK LAUNCH | エクスプローラー・メモ帳・電卓に加え、タスク マネージャー・従来のコントロール パネルの全項目一覧・タスク スケジューラ・スタートアップ アプリ設定を起動。後半4つは0.2.2で追加。 |
 | EVENT LOG | 操作結果を表示。`SAVE` を押した時だけファイルへ保存。 |
 
 メインのタイトルバーをドラッグすると、表示中・通常状態の小窓も一緒に動きます。

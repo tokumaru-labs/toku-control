@@ -1,4 +1,4 @@
-TOKU CONTROL v0.2.1 - Tokumaru Labs
+TOKU CONTROL v0.2.2 - Tokumaru Labs
 
 Extract this entire folder, then run TokuControl.exe.
 Windows x64. The .NET runtime is included. No administrator rights required.
@@ -9,7 +9,7 @@ Read LICENSE, LICENSE-NET-EXCEPTION and THIRD-PARTY.md for license terms.
 The bundled Microsoft components retain their own license terms and notices.
 
 Downloads and matching source:
-https://github.com/tokumaru-labs/toku-control/releases/tag/v0.2.1
+https://github.com/tokumaru-labs/toku-control/releases
 
 SHOW ALL: main console with three modules stacked on the right.
 Drag the main title bar to move visible modules together.

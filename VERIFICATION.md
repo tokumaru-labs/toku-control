@@ -12,6 +12,11 @@ them is not a claim that every audio device, display layout or Windows build is 
 5. CRT checks: individual rendered pixel changes, RAW/restore/dim, state persistence.
 6. Layout checks: vertical-stack geometry, no overlap, restore/persistence and grouped moves.
 
+Native and preview UI captures also check that all seven Quick Launch buttons
+fit without overlap in the home/launcher views, scaled rendering and the small window.
+These geometry checks do not launch programs; native button launches require a
+separate desktop check.
+
 All require a Windows interactive desktop. The rendering tests are not intended
 for a headless Linux runner. `--preview` does not make the normal system panel's
 values fictional; only the explicit gallery capture replaces displayed values with demo data.
