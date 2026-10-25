@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.2 - Unreleased
+## 0.2.2 - 2026-10-25
 
 - Quick Launch now opens Task Manager, all classic Control Panel items, Task Scheduler and Windows Startup Apps settings.
 - Compact shortcut rows keep all seven targets inside the existing panel; preview mode still disables launching.

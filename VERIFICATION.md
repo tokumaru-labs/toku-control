@@ -17,6 +17,10 @@ fit without overlap in the home/launcher views, scaled rendering and the small w
 These geometry checks do not launch programs; native button launches require a
 separate desktop check.
 
+For 0.2.2, actual Quick Launch button clicks opened Task Manager, the classic
+All Control Panel Items view, Task Scheduler, and Settings > Apps > Startup on
+the development PC. No task or startup configuration was changed during this check.
+
 All require a Windows interactive desktop. The rendering tests are not intended
 for a headless Linux runner. `--preview` does not make the normal system panel's
 values fictional; only the explicit gallery capture replaces displayed values with demo data.
