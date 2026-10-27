@@ -28,7 +28,12 @@ terms. Preserve all notices when redistributing the portable folder.
 
 The source tree keeps the original .NET license and notices under
 `runtime-license/`; the build copies them without editing their contents.
-There are no additional third-party NuGet application dependencies.
+The updater uses **Velopack 1.2.161** (MIT) and its native Windows updater/stub.
+The matching license is included as `runtime-license/VELOPACK-LICENSE.txt`.
+Upstream build-tool vendor notices are preserved as
+`runtime-license/VELOPACK-THIRD-PARTY-NOTICES.md`; not every build-tool vendor
+binary described there is shipped in this Windows portable package.
+Source: https://github.com/velopack/velopack/tree/92d6a1c91716729d449034df5c50307dcce39493
 
 The application uses installed Windows fonts; it does not distribute font files.
 The original icon and CRT shader sources are in `Assets/`. User-supplied design

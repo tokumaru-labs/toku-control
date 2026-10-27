@@ -3,7 +3,7 @@
 This project has automated checks plus local Windows desktop checks. Passing
 them is not a claim that every audio device, display layout or Windows build is supported.
 
-`verify.ps1` runs six reports:
+`verify.ps1` runs seven reports:
 
 1. Service checks: settings, bounded log, simulated audio, output-routing behavior and launcher requests/cancellation.
 2. Native UI capture: real audio/system reads without changing OS audio or drive state.
@@ -11,6 +11,28 @@ them is not a claim that every audio device, display layout or Windows build is 
 4. Module checks: visibility, closing/recreation, pinning and module buttons.
 5. CRT checks: individual rendered pixel changes, RAW/restore/dim, state persistence.
 6. Layout checks: vertical-stack geometry, no overlap, restore/persistence and grouped moves.
+7. Update dialog: offer/Yes button layout, Later without downloading, explicit Yes wiring and persisted startup-check preference.
+
+The service checks also exercise the production update session with controlled
+backends: explicit consent, duplicate requests, cancellation, network failure,
+settings-save failure, shutdown prevention and the save/apply/restart order.
+A real Velopack local feed verifies newer-version discovery, package SHA-256,
+corruption rejection and no downgrade. Invalid identity/path/hash/size metadata
+is rejected. UI screenshots use a simulated future offer, not a published release.
+
+For 0.3.0, `verify-update.ps1` also applied the candidate package over a disposable
+0.2.99 portable fixture on the development Windows PC. The runner links the
+production updater source and supplies a local feed only in the test project.
+The native Update.exe waited for the runner to exit, replaced current/, and
+restarted the real candidate app, which rendered its gallery and exited.
+The installed manifest and binary version changed to 0.3.0; the startup-check
+preference, CRT mode, bloom and text-size settings were retained outside current/.
+No user's existing installation or settings are used by this test.
+
+This is not a claim of validation for power loss during replacement, every
+antivirus/file-lock combination or every Windows installation. Download failures
+and corrupt packages are covered; native failure recovery for all environmental
+conditions has not been exhaustively exercised.
 
 Native and preview UI captures also check that all nine Quick Launch buttons
 fit without overlap in the home/launcher views, scaled rendering and the small window.

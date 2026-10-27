@@ -209,6 +209,7 @@ public static class OpticalDrives
 public record WindowPosition(double X, double Y, bool Pin, double? Width = null, double? Height = null);
 public sealed class Settings
 {
+    public bool CheckUpdatesOnStartup { get; set; } = true;
     public bool Crt { get; set; } = true;
     public double Scanline { get; set; } = .08;
     public double Bloom { get; set; } = .22;

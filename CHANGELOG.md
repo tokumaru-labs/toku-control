@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-10-27
+
+- New version available notification with Yes / Update, Later, download progress and cancellation. Accepted updates are verified, applied and restarted with settings preserved.
+- Startup checks for stable GitHub releases, a manual updates window and a persistent startup-check toggle. No download or update occurs without Yes; preview and verification modes do not check online.
+- Portable ZIPs now include a stable launcher, `Update.exe` and `current/`, using pinned Velopack 1.2.161. Users of 0.2.3 or earlier must extract this new ZIP into a fresh folder once.
+- Added consent/cancellation/failure, real local feed/checksum, update-dialog and packaging checks. Updated network/privacy and release documentation.
+
 ## 0.2.3 - 2026-10-27
 
 - Quick Launch adds Command Prompt and the built-in Windows PowerShell, starting in the user's home folder.
