@@ -1,10 +1,16 @@
-TOKU CONTROL v0.2.3 - Tokumaru Labs
+TOKU CONTROL v0.3.0 - Tokumaru Labs
 
-Extract this entire folder, then run TokuControl.exe.
+Extract the entire ZIP into a new folder, then run the TOP-LEVEL TokuControl.exe.
+Keep Update.exe, current/ and all other extracted files together.
 Windows x64. The .NET runtime is included. No administrator rights required.
-This release is unsigned; there is no installer or automatic updater.
+This release is unsigned; no installer is required.
+New version available > YES / UPDATE downloads, verifies, updates and restarts.
+LATER skips it. + updates provides manual checking and a startup-check switch.
+Updating from 0.2.3 or older requires this one manual ZIP replacement first.
+Settings are preserved. Personal files must stay outside current/.
 
 Read README.md or README.ja.md for controls and limitations.
+In the extracted update-enabled ZIP, these guides and licenses are in current/.
 Read LICENSE, LICENSE-NET-EXCEPTION and THIRD-PARTY.md for license terms.
 The bundled Microsoft components retain their own license terms and notices.
 

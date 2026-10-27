@@ -16,11 +16,11 @@ Blue title bars, green LCD digits and adjustable CRT effects are part of the int
 
 1. Download the Windows x64 ZIP from [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest).
 2. Extract the **entire** ZIP into a folder.
-3. Run `TokuControl.exe`. Keep its DLLs and license files beside it.
+3. Run the **top-level `TokuControl.exe`**. Keep `Update.exe`, `current/` and the other extracted files together.
 
 Windows x64; tested on Windows 11. The portable build includes .NET, so no
 separate runtime installation, account or administrator privileges are needed.
-This early release is **unsigned** and has no installer or automatic updater.
+This early release is **unsigned** and needs no installer.
 Windows may show an unknown-publisher warning. Only run a download whose source
 you trust; release assets include a SHA-256 checksum file.
 
@@ -37,6 +37,7 @@ you trust; release assets include a SHA-256 checksum file.
 | Drives | Optical-drive eject; tray close only where supported by the hardware. |
 | Launcher | Explorer, Notepad, Calculator, Task Manager, all classic Control Panel items, Task Scheduler, Startup Apps settings, Command Prompt and Windows PowerShell. The two shells are new in 0.2.3. |
 | Event log | Operation results, with explicit export using `SAVE`. |
+| Updates | Startup checks for new stable versions; `+ updates` opens manual checking and the startup-check preference. `YES / UPDATE` downloads, verifies, updates and restarts. |
 
 Drag the main title bar to move visible, non-minimized modules with it. Each
 small window can also be moved independently. `P` / `PIN` keeps a module on top.
@@ -63,13 +64,18 @@ restores the arrangement if a group drag moves a module out of view.
 
 ## Local behavior and settings
 
-TOKU CONTROL has no accounts, remote-control server, application analytics or
-application-initiated network requests. Windows/.NET services such as OS error
-reporting remain governed by the operating system's settings and vendor terms.
+TOKU CONTROL has no accounts, remote-control server or application analytics.
+Starting with 0.3.0, update checks contact the public GitHub repository over HTTPS.
+Checks run on startup by default and can be switched off in `+ updates`.
+Downloads happen only after `YES / UPDATE`. GitHub receives normal connection
+information such as your IP address; device/audio data and settings are not uploaded.
+Windows/.NET services such as OS error reporting remain governed by the operating
+system's settings and vendor terms.
 
 Settings are stored in `%LOCALAPPDATA%\TokumaruLabs\TokuControl\settings.json`.
-They contain window positions/sizes, pin state and appearance preferences.
-Logs remain in memory unless you export them. Exported logs or screenshots can
+They contain window positions/sizes, pin state, appearance and the update-check preference.
+Operation logs remain in memory unless you export them; the updater also writes
+local diagnostic logs. Exported logs or screenshots can
 contain device/system information; review them before sharing.
 
 To reset appearance and window settings, exit the app and move `settings.json`
@@ -79,6 +85,16 @@ app or Windows if desired.
 
 ## Limits
 
+- **First upgrade:** 0.2.3 and earlier do not contain the updater. Extract 0.3.0 or
+  later into a new folder once, then start its top-level EXE. Existing settings
+  carry over. Future updates use the in-app prompt. Keep personal files outside
+  `current/`, which is replaced during updates. Do not extract over an older flat ZIP.
+- Update packages are checked with SHA-256 before installation. This checks
+  integrity against the official release feed; it is not a publisher code signature.
+  A writable local folder and enough disk space are required. Close other copies
+  of TOKU CONTROL before updating. Offline/rate-limited checks and cancelled or
+  failed downloads leave the running version usable. File-lock problems may cause
+  the updater to display an error and reopen the old version.
 - Output switching changes the Console and Multimedia playback defaults, not
   the Communications default, microphone settings or per-app output overrides.
   It uses the undocumented Windows `IPolicyConfig` COM interface. Compatibility
@@ -107,8 +123,9 @@ The portable build is written to `artifacts/portable`. Tests need an interactive
 Windows desktop. Native checks read OS state; audio writes, routing and drive
 actions are tested using the simulated backend. See [verification scope](VERIFICATION.md).
 
-`package.ps1` builds the portable ZIP and its SHA-256 checksum in `artifacts/release`.
-It refuses to overwrite an existing archive.
+`package.ps1` uses pinned Velopack 1.2.161 to build the update-enabled portable ZIP,
+full update package, release feed and checksums in `artifacts/release-v<version>`.
+It requires fresh output directories. See [release/update instructions](UPDATING.md).
 
 `--preview --data-dir "<temporary-folder>"` opens a simulated audio/device
 console. Its clock and system panel normally still read live data.
