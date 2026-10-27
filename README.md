@@ -35,12 +35,22 @@ you trust; release assets include a SHA-256 checksum file.
 | Modules | `SHOW ALL`, `GRID` and `RECALL` place the three equal-width modules in a vertical column to the right of the main window. |
 | CRT | Live scanlines, bloom, RGB edge, noise and vignette. `RAW` disables effects; `RESTORE` restores their defaults. |
 | Drives | Optical-drive eject; tray close only where supported by the hardware. |
-| Launcher | Explorer, Notepad, Calculator, Task Manager, all classic Control Panel items, Task Scheduler and Startup Apps settings. The last four shortcuts are new in 0.2.2. |
+| Launcher | Explorer, Notepad, Calculator, Task Manager, all classic Control Panel items, Task Scheduler, Startup Apps settings, Command Prompt and Windows PowerShell. The two shells are new in 0.2.3. |
 | Event log | Operation results, with explicit export using `SAVE`. |
 
 Drag the main title bar to move visible, non-minimized modules with it. Each
 small window can also be moved independently. `P` / `PIN` keeps a module on top.
 Closing the main window exits the application; closing a module only closes that module.
+
+Click a Quick Launch button to open its tool normally. For **Command Prompt,
+Windows PowerShell, Notepad, Task Manager and Task Scheduler**, right-click the
+button (or focus it and press `Shift+F10`) and choose **Run as administrator**.
+Windows handles UAC consent or administrator credentials; cancelling leaves the
+console running. This choice applies to that launch only. The console itself
+does not request elevation. Explorer, Calculator, Control Panel and Startup Apps
+keep their normal Windows launch behavior and have no administrator menu.
+PowerShell opens the built-in **Windows PowerShell**, not a separately installed
+PowerShell 7. Both shells start in your user folder. Preview mode disables all launches.
 
 The full arrangement needs approximately **1512 × 848 logical pixels** of work
 area (more physical pixels at higher Windows scaling). If it cannot fit, the app

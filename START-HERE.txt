@@ -1,4 +1,4 @@
-TOKU CONTROL v0.2.2 - Tokumaru Labs
+TOKU CONTROL v0.2.3 - Tokumaru Labs
 
 Extract this entire folder, then run TokuControl.exe.
 Windows x64. The .NET runtime is included. No administrator rights required.
@@ -14,6 +14,9 @@ https://github.com/tokumaru-labs/toku-control/releases
 SHOW ALL: main console with three modules stacked on the right.
 Drag the main title bar to move visible modules together.
 SYSTEM PULSE: open SYSTEM / DISPLAYS > for PC and monitor details.
+QUICK LAUNCH: Command Prompt and Windows PowerShell are available.
+Right-click a supported tool (or press Shift+F10) > Run as administrator.
+Windows may ask for UAC consent or administrator credentials for that tool.
 
 Settings: %LOCALAPPDATA%\TokumaruLabs\TokuControl\settings.json
 Exiting does not undo Windows volume or default-output changes.
