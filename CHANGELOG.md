@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 - 2026-10-27
+
+- Quick Launch adds Command Prompt and the built-in Windows PowerShell, starting in the user's home folder.
+- Right-click or Shift+F10 opens an Open / Run as administrator menu for those shells, Notepad, Task Manager and Task Scheduler. Administrator launches use the Windows UAC flow; cancelling is logged without retrying.
+- All nine shortcuts fit the existing panel. Preview mode blocks normal and administrator launches.
+
 ## 0.2.2 - 2026-10-25
 
 - Quick Launch now opens Task Manager, all classic Control Panel items, Task Scheduler and Windows Startup Apps settings.
