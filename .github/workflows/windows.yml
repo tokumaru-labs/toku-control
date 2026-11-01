@@ -27,6 +27,9 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'Checks failed' }
           $report = Get-Content artifacts/ci-checks.json -Raw | ConvertFrom-Json
           if ($report.passed -ne $true) { throw 'Missing passing report' }
+      - name: Startup path and collection bounds regressions
+        shell: powershell
+        run: ./tools/Test-RadarProbes.ps1
       - name: Simulated WPF radar rendering and navigation
         shell: pwsh
         run: |
@@ -40,5 +43,6 @@ jobs:
           name: windows-checks
           path: |
             artifacts/ci-checks.json
+            artifacts/radar-probe-checks.json
             artifacts/ci-radar/
           retention-days: 7

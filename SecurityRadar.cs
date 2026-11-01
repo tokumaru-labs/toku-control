@@ -99,6 +99,7 @@ internal sealed class RadarSession(IRadarProbe probe)
     public Dictionary<RadarSource, RadarRead> Current { get; } = new();
     public Dictionary<RadarSource, RadarRead> Reference { get; } = new();
     public bool Busy { get; private set; }
+    public event Action? Changed;
     public bool SetReference()
     {
         if (Busy || !RadarKnowledge.Persistence.All(s => Current.TryGetValue(s, out var r) && r.Coverage == RadarCoverage.Complete)) return false;
@@ -106,12 +107,13 @@ internal sealed class RadarSession(IRadarProbe probe)
         foreach (var source in RadarKnowledge.Persistence) Reference[source] = Current[source];
         return true;
     }
-    public async Task RefreshAsync(CancellationToken cancellation, Action? changed = null)
+    public async Task RefreshAsync(CancellationToken cancellation)
     {
         if (Busy) return;
         Busy = true;
         // Discard prior current observations on refresh, retaining the explicit reference only.
         Current.Clear();
+        Changed?.Invoke();
         try
         {
             foreach (var source in Enum.GetValues<RadarSource>())
@@ -120,10 +122,10 @@ internal sealed class RadarSession(IRadarProbe probe)
                 try { read = await probe.ReadAsync(source, cancellation); }
                 catch (OperationCanceledException) { read = new(source, RadarCoverage.Cancelled, DateTimeOffset.Now, "ユーザーが取得を中止しました。", []); }
                 catch (Exception ex) { read = new(source, RadarCoverage.Unavailable, DateTimeOffset.Now, "取得失敗: " + ex.GetType().Name, []); }
-                Current[source] = read; changed?.Invoke();
+                Current[source] = read; Changed?.Invoke();
             }
         }
-        finally { Busy = false; }
+        finally { Busy = false; Changed?.Invoke(); }
     }
 }
 
@@ -141,7 +143,11 @@ internal sealed class WindowsRadarProbe : IRadarProbe
         if (!Enum.IsDefined(source)) throw new ArgumentOutOfRangeException(nameof(source));
         var psi = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"))
         { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
-        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes("$source = '" + source + "'\n" + Script)) }) psi.ArgumentList.Add(argument);
+        var command = "$source = '" + source + "'\n" + Script;
+        // ArgumentList quotes the fixed command; no shell or user text is interpolated.
+        // Leave space for worst-case Windows argument quoting, including CRLF checkouts.
+        if (command.Length > 15000) throw new InvalidDataException("Probe command exceeds Windows argument budget");
+        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command }) psi.ArgumentList.Add(argument);
         // Only OS module locations: user/working-directory modules must not shadow read cmdlets.
         psi.Environment["PSModulePath"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
         psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);

@@ -25,6 +25,21 @@ function ProcessLabel([int]$processId) {
         try { return $p.ProcessName } finally { $p.Dispose() }
     } catch { return 'unavailable / exited or access denied' }
 }
+function Read-LocalAttributes([string]$path) { return [IO.File]::GetAttributes($path) }
+function Test-LocalStartupPath([string]$path) {
+    if (-not $path -or $path.StartsWith('\\') -or ([IO.DriveInfo]::new([IO.Path]::GetPathRoot($path))).DriveType -ne [IO.DriveType]::Fixed) { throw 'Non-local startup folder' }
+    $parent = [IO.DirectoryInfo]::new($path)
+    $ancestors = [Collections.Generic.List[string]]::new()
+    while ($null -ne $parent) { $ancestors.Add($parent.FullName); $parent = $parent.Parent }
+    $ancestors.Reverse()
+    foreach ($ancestor in $ancestors) {
+        try { $attributes = Read-LocalAttributes $ancestor }
+        catch [IO.FileNotFoundException] { return $false }
+        catch [IO.DirectoryNotFoundException] { return $false }
+        if ($attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse point' }
+    }
+    return $true
+}
 try {
     switch ($source) {
         'Defender' {
@@ -71,16 +86,9 @@ try {
                 $path = [Environment]::GetFolderPath([Environment+SpecialFolder]$folder, [Environment+SpecialFolderOption]::DoNotVerify)
                 try {
                     # Do not touch redirected network folders, reparse points, or their targets.
-                    if (-not $path -or $path.StartsWith('\\') -or ([IO.DriveInfo]::new([IO.Path]::GetPathRoot($path))).DriveType -ne [IO.DriveType]::Fixed) { throw 'Non-local startup folder' }
-                    # Directory.Exists suppresses access errors: check attributes instead.
-                    try { $null = [IO.File]::GetAttributes($path) }
-                    catch [IO.FileNotFoundException] { continue }
-                    catch [IO.DirectoryNotFoundException] { continue }
-                    $parent = [IO.DirectoryInfo]::new($path)
-                    while ($null -ne $parent) {
-                        if ([IO.File]::GetAttributes($parent.FullName) -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse point' }
-                        $parent = $parent.Parent
-                    }
+                    # Check root-to-leaf BEFORE touching the leaf: a parent may redirect to a share.
+                    # Directory.Exists suppresses access errors, so use attributes and typed errors.
+                    if (-not (Test-LocalStartupPath $path)) { continue }
                     foreach ($file in [IO.DirectoryInfo]::new($path).GetFiles()) {
                         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 8388608) { Partial 'A startup file was skipped (link/reparse point or size over 8 MiB).'; continue }
                         # Hash the shortcut file itself, never resolve or execute its target.

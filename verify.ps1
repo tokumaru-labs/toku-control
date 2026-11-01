@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$Executable = '')
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'tools\Test-RadarProbes.ps1')
 if (-not $Executable) { $Executable = Join-Path $PSScriptRoot 'artifacts\portable\TokuControl.exe' }
 $tokuResults = Join-Path $PSScriptRoot 'artifacts\verification'
 New-Item -ItemType Directory -Path $tokuResults -Force | Out-Null
@@ -21,4 +22,4 @@ foreach ($tokuReport in @('service-checks.json', 'native\ui-checks.json', 'previ
     $tokuResult = Get-Content -LiteralPath (Join-Path $tokuResults $tokuReport) -Raw | ConvertFrom-Json
     if ($tokuResult.passed -ne $true) { throw "Failed report: $tokuReport" }
 }
-Write-Output 'PASS: service, native UI read-only, simulated UI, module buttons, CRT controls/rendering, module layout, updater consent/cancellation/feed/checksum and UI checks.'
+Write-Output 'PASS: service, native UI read-only, simulated UI, module buttons, CRT controls/rendering, module layout, updater, Security Radar and startup path/bounds checks.'

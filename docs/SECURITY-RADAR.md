@@ -100,15 +100,21 @@ The available v0.1 ZIP was inspected read-only, SHA-256:
 `5450f0f17567c3a5f21921136e679291d4e17ccdd3625276c23c9e58ef5804f9`.
 It hashes AI instruction/configuration files, records explicit trust and gates
 launching. It is not a protection/event/network collector, and is not executed,
-modified or bundled here. The v0.2 delivery message describes a Python network
-preview with optional country data and confirmed blocking; its source ZIP was not
-available through the retrieved attachments. That integration remains unverified.
-This WPF feature introduces neither Python nor blocking, and does not claim reuse
-of unseen v0.2 source.
+modified or bundled here. The v0.2 source ZIP was then retrieved from its original
+delivery and inspected (SHA-256
+`38ee17bba193b8f548acc2d11795dfabdfd7b18f1979de773ad9d3067125f659`).
+Its `Collect-Network.ps1` already uses Get-NetTCPConnection plus process metadata,
+bounded JSON and no DNS/disk logs. That read-only collection approach is retained
+in the native adapter, with UDP/listening sockets, failure states and per-source
+bounds added for this feature. Its Python/browser server, optional country data,
+maps and separate confirmed firewall-control script are not bundled or invoked.
+Agent Guard's instruction-file trust/launch workflow remains unchanged. This is
+not a claim that the separate v0.2 application's Windows blocking was validated.
 
 ## Validation and recovery
 
-- `verify.ps1`: existing native/simulated suites plus radar WPF fixtures.
+- `verify.ps1`: existing native/simulated suites plus radar WPF fixtures and
+  `tools/Test-RadarProbes.ps1` helper regressions (redirect, access failure, bounds).
 - `--radar-self-test --result <path>`: deterministic radar, routing, launcher and
   updater checks suitable for CI without live-device assumptions.
 - `--radar-live-check --result <path>`: adds real collection, reporting only

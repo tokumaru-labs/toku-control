@@ -106,6 +106,7 @@ public sealed partial class ConsoleWindow
             SelectSection("security"); var first = radarWindow!; SelectSection("security");
             checks["singleton"] = ReferenceEquals(first, radarWindow);
             checks["no scan on opening"] = radarSession!.Current.Count == 0;
+            checks["radar visible and contained"] = first.IsVisible && first.ShowInTaskbar && WindowPlacement.WorkArea(first).Contains(WindowPlacement.NativeBounds(first));
             await first.RefreshAsync(); first.UpdateLayout();
             checks["nine demo sources"] = first.Session.Current.Count == 9 && first.CardCount == 7;
             checks["baseline button works"] = first.ReferenceButton.IsEnabled;
@@ -122,6 +123,15 @@ public sealed partial class ConsoleWindow
             first.Close(); SelectSection("security");
             checks["reopen preserves session reference"] = radarWindow != null && !ReferenceEquals(first, radarWindow) && radarWindow.Session.Reference.Count == 4;
             radarWindow!.Close();
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var delayed = new SecurityRadarChecks.Probe { Read = async (s, _) => { await gate.Task; return new RadarRead(s, RadarCoverage.Complete, DateTimeOffset.Now, "delayed fixture", []); } };
+            radarSession = new(delayed); ShowSecurityRadar();
+            var closing = radarWindow!; var pending = closing.RefreshAsync();
+            closing.Close(); ShowSecurityRadar(); var reopened = radarWindow!;
+            checks["reopened window waits for active read"] = !reopened.RefreshButton.IsEnabled;
+            gate.SetResult(); await pending;
+            checks["reopened window observes completion"] = reopened.RefreshButton.IsEnabled && !reopened.CancelButton.IsEnabled && reopened.Session.Current.Count == 9;
+            reopened.Close();
         }
         catch (Exception ex) { checks["error"] = ex.ToString(); }
         checks["passed"] = checks.Count >= 9 && checks.Values.All(v => v is true);

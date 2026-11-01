@@ -24,7 +24,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
     {
         this.session = session; this.demo = demo;
         TextBlock.SetLineHeight(detail, 19);
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = Math.Min(1100, SystemParameters.WorkArea.Width); Height = Math.Min(760, SystemParameters.WorkArea.Height);
         ShowInTaskbar = true;
         RefreshButton = Retro.Button("READ / REFRESH", "このPCの状態を読み取る。設定変更・昇格・送信は行いません", () => Reading = RefreshAsync());
@@ -42,7 +42,8 @@ internal sealed class SecurityRadarWindow : RetroWindow
         left.Children.Add(new ScrollViewer { Content = cards, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }); grid.Children.Add(left);
         var evidence = Retro.Box("EVIDENCE / 根拠・限界", detail); Grid.SetColumn(evidence, 1); grid.Children.Add(evidence); Layout.Children.Add(grid);
         Footer.Text = "NO AUTO-REMEDIATION / NO UPLOAD   •   取得不可は安全判定に含めません";
-        Closed += (_, _) => { closed = true; cancellation?.Cancel(); };
+        session.Changed += Render;
+        Closed += (_, _) => { closed = true; session.Changed -= Render; cancellation?.Cancel(); };
         Render();
     }
     internal void SetView(bool sources) { sourceView = sources; selected = 0; Render(); }
@@ -51,8 +52,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
     {
         if (session.Busy) return;
         cancellation?.Dispose(); cancellation = new();
-        var read = session.RefreshAsync(cancellation.Token, () => { if (!closed) Render(); });
-        Render();
+        var read = session.RefreshAsync(cancellation.Token);
         await read;
         if (!closed) Render();
     }
@@ -115,12 +115,12 @@ public sealed partial class ConsoleWindow
     RadarSession? radarSession;
     void ShowSecurityRadar()
     {
-        if (radarWindow != null) { if (radarWindow.WindowState == WindowState.Minimized) radarWindow.WindowState = WindowState.Normal; radarWindow.Activate(); return; }
+        if (radarWindow != null) { if (radarWindow.WindowState == WindowState.Minimized) radarWindow.WindowState = WindowState.Normal; WindowPlacement.OverConsole(this, radarWindow); radarWindow.Activate(); return; }
         radarSession ??= new(preview ? new DemoRadarProbe() : new WindowsRadarProbe());
-        radarWindow = new(radarSession, preview) { Owner = this };
+        radarWindow = new(radarSession, preview);
         radarWindow.Apply(settings);
         radarWindow.Closed += (_, _) => radarWindow = null;
-        radarWindow.Show();
+        radarWindow.Show(); WindowPlacement.OverConsole(this, radarWindow); radarWindow.Activate();
     }
 }
 

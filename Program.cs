@@ -173,6 +173,7 @@ public sealed partial class ConsoleWindow : RetroWindow
             slowTimer.Stop(); audioTimer.Stop(); peakTimer.Stop(); crtSaveTimer.Stop();
             settings.Windows["main"] = WindowPlacement.Read(this);
             foreach (var window in modules.Values.ToArray()) window.Close();
+            radarWindow?.Close();
             audio.Dispose(); routes.Dispose(); var error = store.Save(settings);
             if (error != null) MessageBox.Show(error + "\n" + store.FilePath, "TOKU CONTROL", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
