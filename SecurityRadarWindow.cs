@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 
 namespace TokuControl;
@@ -9,17 +10,25 @@ internal sealed class SecurityRadarWindow : RetroWindow
     readonly RadarSession session;
     readonly bool demo;
     readonly StackPanel cards = new();
+    readonly UniformGrid mapGroups = new() { Columns = 2 };
+    readonly ScrollViewer overview = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    readonly TextBlock mapHint = Retro.Label("", Retro.Text, 13);
+    readonly TextBlock viewHint = Retro.Label("", Retro.Cyan, 11);
+    readonly List<Button> mapButtons = new();
     readonly TextBlock status = Retro.Label("NOT SCANNED / 調べる項目と説明を選べます", Retro.Cyan, 12);
     readonly TextBlock referenceStatus = Retro.Label("比較基準なし / アプリ終了までのメモリ内だけで保持", Retro.Dim, 11);
     readonly TextBox detail = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Retro.Background, Foreground = Retro.Text, BorderThickness = new Thickness(0), Padding = new Thickness(12), FontSize = 13 };
-    internal readonly Button RefreshButton, CancelButton, ReferenceButton;
+    internal readonly Button RefreshButton, CancelButton, ReferenceButton, MapButton, SourcesButton;
     CancellationTokenSource? cancellation;
     bool closed, sourceView;
-    int selected;
+    int selected = -1;
     internal Task? Reading { get; private set; }
     internal RadarSession Session => session;
     internal string DetailText => detail.Text;
     internal int CardCount => cards.Children.Count;
+    internal bool MapVisible => overview.Visibility == Visibility.Visible;
+    internal IReadOnlyList<Button> MapButtons => mapButtons;
+    internal int MapColumns => mapGroups.Columns;
     public SecurityRadarWindow(RadarSession session, bool demo = false) : base("security-radar", "SECURITY RADAR / ATTACK MAP", 1100, 760, true)
     {
         this.session = session; this.demo = demo;
@@ -37,17 +46,23 @@ internal sealed class SecurityRadarWindow : RetroWindow
         var grid = new Grid { Margin = new Thickness(8) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(340) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
         var left = new DockPanel();
-        var tabs = Retro.Row(Retro.Button("ATTACK MAP", "手口から観測項目を逆引き", () => SetView(false)), Retro.Button("SOURCES", "取得元ごとの状態・範囲を表示", () => SetView(true)));
+        MapButton = Retro.Button("ATTACK MAP", "手口と確認項目の対応図へ戻る", () => SetView(false));
+        SourcesButton = Retro.Button("SOURCES", "取得元ごとの状態・範囲を表示", () => SetView(true));
+        var tabs = Retro.Col(Retro.Row(MapButton, SourcesButton), viewHint);
         DockPanel.SetDock(tabs, Dock.Top); left.Children.Add(tabs);
         left.Children.Add(new ScrollViewer { Content = cards, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }); grid.Children.Add(left);
-        var evidence = Retro.Box("EVIDENCE / 根拠・限界", detail); Grid.SetColumn(evidence, 1); grid.Children.Add(evidence); Layout.Children.Add(grid);
+        overview.Content = Retro.Col(Retro.Label("ATTACK MAP / 手口と確認項目の対応図", Retro.Cyan, 15), mapHint,
+            Retro.Label("項目をクリック → 根拠を表示。対応関係を示す図で、実際の侵入経路ではありません。", Retro.Dim, 12), mapGroups);
+        overview.SizeChanged += (_, _) => mapGroups.Columns = overview.ActualWidth < 520 ? 1 : 2;
+        var content = new Grid(); content.Children.Add(detail); content.Children.Add(overview);
+        var evidence = Retro.Box("MAP / EVIDENCE / 対応図・根拠", content); Grid.SetColumn(evidence, 1); grid.Children.Add(evidence); Layout.Children.Add(grid);
         Footer.Text = "NO AUTO-REMEDIATION / NO UPLOAD   •   取得不可は安全判定に含めません";
         session.Changed += Render;
         Closed += (_, _) => { closed = true; session.Changed -= Render; cancellation?.Cancel(); };
         Render();
     }
-    internal void SetView(bool sources) { sourceView = sources; selected = 0; Render(); }
-    internal void SelectCard(int index) { selected = index; RenderDetails(); }
+    internal void SetView(bool sources) { sourceView = sources; selected = sources ? 0 : -1; Render(); }
+    internal void SelectCard(int index) { selected = index; Render(); }
     internal async Task RefreshAsync()
     {
         if (session.Busy) return;
@@ -59,8 +74,16 @@ internal sealed class SecurityRadarWindow : RetroWindow
     static Brush Color(RadarSignal signal) => signal switch { RadarSignal.Review => Retro.Amber, RadarSignal.Observed => Retro.Cyan, _ => Retro.Dim };
     RadarAssessment Assessment(RadarSource source) => session.Current.TryGetValue(source, out var read)
         ? RadarAnalysis.Assess(read, session.Reference.GetValueOrDefault(source)) : new(RadarSignal.Unknown, "未取得", "READ / REFRESH で読み取れます。");
+    RadarSignal SignalFor(RadarSource[] sources)
+    {
+        var states = sources.Select(Assessment).ToArray();
+        return states.Any(s => s.Signal == RadarSignal.Unknown) ? RadarSignal.Unknown : states.Any(s => s.Signal == RadarSignal.Review) ? RadarSignal.Review : states.Any(s => s.Signal == RadarSignal.NotCompared) ? RadarSignal.NotCompared : RadarSignal.Observed;
+    }
     void Render()
     {
+        MapButton.BorderBrush = sourceView ? Retro.Border : Retro.Cyan;
+        SourcesButton.BorderBrush = sourceView ? Retro.Cyan : Retro.Border;
+        viewHint.Text = sourceView ? "表示中: SOURCES / 取得元を選択" : selected < 0 ? "表示中: ATTACK MAP / 全体図" : "表示中: 手口の詳細 / ATTACK MAPで全体図へ";
         RefreshButton.IsEnabled = !session.Busy; CancelButton.IsEnabled = session.Busy;
         ReferenceButton.IsEnabled = !session.Busy && RadarKnowledge.Persistence.All(s => session.Current.TryGetValue(s, out var r) && r.Coverage == RadarCoverage.Complete);
         var missing = session.Current.Values.Count(r => r.Coverage != RadarCoverage.Complete);
@@ -72,18 +95,22 @@ internal sealed class SecurityRadarWindow : RetroWindow
         {
             int index = i;
             var sources = sourceView ? new[] { (RadarSource)i } : RadarKnowledge.Techniques[i].Sources;
-            var states = sources.Select(Assessment).ToArray();
-            var signal = states.Any(s => s.Signal == RadarSignal.Unknown) ? RadarSignal.Unknown : states.Any(s => s.Signal == RadarSignal.Review) ? RadarSignal.Review : states.Any(s => s.Signal == RadarSignal.NotCompared) ? RadarSignal.NotCompared : RadarSignal.Observed;
+            var signal = SignalFor(sources);
             string title = sourceView ? RadarKnowledge.Title((RadarSource)i) : RadarKnowledge.Techniques[i].Id + " / " + RadarKnowledge.Techniques[i].Title;
             var b = Retro.Button(title, "取得根拠と確認範囲を見る", () => SelectCard(index));
             b.Content = Retro.Col(Retro.Label(title, Color(signal), 12), Retro.Label(RadarKnowledge.Signal(signal), Color(signal), 10));
             b.HorizontalContentAlignment = HorizontalAlignment.Stretch; b.Margin = new Thickness(2, 3, 5, 3);
+            if (i == selected) b.BorderBrush = Retro.Cyan;
             cards.Children.Add(b);
         }
         RenderDetails();
     }
     void RenderDetails()
     {
+        bool showMap = !sourceView && selected < 0;
+        overview.Visibility = showMap ? Visibility.Visible : Visibility.Collapsed;
+        detail.Visibility = showMap ? Visibility.Collapsed : Visibility.Visible;
+        if (showMap) { detail.Clear(); RenderMap(); return; }
         var sources = sourceView ? new[] { (RadarSource)selected } : RadarKnowledge.Techniques[selected].Sources;
         var text = new System.Text.StringBuilder();
         if (demo) text.AppendLine("DEMO / 架空の例\n");
@@ -106,6 +133,30 @@ internal sealed class SecurityRadarWindow : RetroWindow
             text.AppendLine();
         }
         detail.Text = text.ToString();
+        detail.ScrollToHome();
+    }
+    void RenderMap()
+    {
+        mapHint.Text = (demo ? "DEMO / 架空のデータ\n" : "") + (session.Current.Count == 0
+            ? "まだ未取得です。READ / REFRESHでこのPCの状態を読み取れます。"
+            : "各項目の表示は取得できた範囲の状態です。未比較・未確認を安全判定に含めません。");
+        mapGroups.Children.Clear(); mapButtons.Clear();
+        (string Title, int[] Indices)[] groups = [("保護状態", [0, 1]), ("永続化の変化", [2, 3, 4]), ("認証", [5]), ("通信", [6])];
+        foreach (var group in groups)
+        {
+            var items = new StackPanel();
+            foreach (int index in group.Indices)
+            {
+                var technique = RadarKnowledge.Techniques[index];
+                var signal = SignalFor(technique.Sources);
+                var button = Retro.Button(technique.Id + " / " + technique.Title, "この手口に対応する観測結果を開く", () => SelectCard(index));
+                button.Content = Retro.Col(Retro.Label(technique.Id + " / " + technique.Title, Color(signal), 12),
+                    Retro.Label("↓ " + string.Join(" + ", technique.Sources.Select(RadarKnowledge.Title)), Retro.Text, 11),
+                    Retro.Label(RadarKnowledge.Signal(signal), Color(signal), 11));
+                items.Children.Add(button); mapButtons.Add(button);
+            }
+            mapGroups.Children.Add(Retro.Box(group.Title, items));
+        }
     }
 }
 

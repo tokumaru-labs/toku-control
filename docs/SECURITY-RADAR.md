@@ -2,8 +2,12 @@
 
 Open **security radar** in the left navigation, then **READ / REFRESH**. Opening
 the window does not start a scan. Seven technique families map to nine Windows
-observation sources. Select a card for evidence, capture time, scope, failure
-reason and interpretation limits. **SOURCES** shows the same evidence by collector.
+observation sources. **ATTACK MAP** opens a grouped overview of technique-to-source
+relationships; it is also the initial view. Click a node or left-hand card for
+evidence, then use **ATTACK MAP** to return to the overview. The diagram is not an
+observed intrusion path. Selecting a view never starts collection. Evidence includes
+capture time, scope, failure reason and interpretation limits. **SOURCES** shows
+the same evidence by collector.
 The radar requires no internet, extra packages, paid service or administrator
 prompt and never changes Windows security settings.
 

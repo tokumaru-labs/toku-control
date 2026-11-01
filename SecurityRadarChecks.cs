@@ -107,18 +107,36 @@ public sealed partial class ConsoleWindow
             checks["singleton"] = ReferenceEquals(first, radarWindow);
             checks["no scan on opening"] = radarSession!.Current.Count == 0;
             checks["radar visible and contained"] = first.IsVisible && first.ShowInTaskbar && WindowPlacement.WorkArea(first).Contains(WindowPlacement.NativeBounds(first));
+            checks["opens explicit map before collection"] = first.MapVisible && first.MapButtons.Count == 7;
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["map navigation does not collect"] = first.MapVisible && first.Session.Current.Count == 0;
             await first.RefreshAsync(); first.UpdateLayout();
             checks["nine demo sources"] = first.Session.Current.Count == 9 && first.CardCount == 7;
+            checks["refresh keeps map visible"] = first.MapVisible && first.MapButtons.Count == 7;
             checks["baseline button works"] = first.ReferenceButton.IsEnabled;
             first.ReferenceButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["explicit reference set"] = first.Session.Reference.Count == 4;
-            first.SelectCard(2);
+            first.MapButtons[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["map opens evidence"] = first.DetailText.Contains("T1547.001") && first.DetailText.Contains("DEMO");
+            Capture(first, Path.Combine(directory, "radar-detail.png"));
+            bool allNodes = true;
+            for (int i = 0; i < RadarKnowledge.Techniques.Length; i++)
+            {
+                first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                first.MapButtons[i].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                allNodes &= !first.MapVisible && first.DetailText.Contains(RadarKnowledge.Techniques[i].Id);
+            }
+            checks["all map nodes open their evidence"] = allNodes;
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); first.UpdateLayout();
+            checks["attack map button returns to overview"] = first.MapVisible && first.MapButtons.Count == 7 && first.DetailText.Length == 0;
             Capture(first, Path.Combine(directory, "radar-map.png"));
-            first.SetView(true); first.SelectCard(7);
+            first.SourcesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); first.SelectCard(7);
             checks["source details"] = first.CardCount == 9 && first.DetailText.Contains("203.0.113.20") && first.DetailText.Contains("OBSERVED");
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["source to map retains observations and reference"] = first.MapVisible && first.Session.Current.Count == 9 && first.Session.Reference.Count == 4;
             first.Width = 760; first.Height = 540; first.UpdateLayout();
             checks["toolbar fits small window"] = first.ReferenceButton.TranslatePoint(new Point(first.ReferenceButton.ActualWidth, 0), first).X < first.ActualWidth;
+            checks["small map uses one column within window"] = first.MapColumns == 1 && first.MapButtons.All(b => b.TranslatePoint(new Point(b.ActualWidth, 0), first).X <= first.ActualWidth);
             Capture(first, Path.Combine(directory, "radar-small.png"));
             first.Close(); SelectSection("security");
             checks["reopen preserves session reference"] = radarWindow != null && !ReferenceEquals(first, radarWindow) && radarWindow.Session.Reference.Count == 4;
