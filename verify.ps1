@@ -16,7 +16,8 @@ Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'module-st
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'crt-state') + '"'), '--crt-check-dir', ('"' + (Join-Path $tokuResults 'crt') + '"'))
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'layout-state') + '"'), '--layout-check-dir', ('"' + (Join-Path $tokuResults 'layout') + '"'))
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'update-state') + '"'), '--update-check-dir', ('"' + (Join-Path $tokuResults 'updates') + '"'))
-foreach ($tokuReport in @('service-checks.json', 'native\ui-checks.json', 'preview\ui-checks.json', 'modules\module-checks.json', 'crt\crt-checks.json', 'layout\layout-checks.json', 'updates\update-ui-checks.json')) {
+Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'radar-state') + '"'), '--radar-check-dir', ('"' + (Join-Path $tokuResults 'radar') + '"'))
+foreach ($tokuReport in @('service-checks.json', 'native\ui-checks.json', 'preview\ui-checks.json', 'modules\module-checks.json', 'crt\crt-checks.json', 'layout\layout-checks.json', 'updates\update-ui-checks.json', 'radar\radar-ui-checks.json')) {
     $tokuResult = Get-Content -LiteralPath (Join-Path $tokuResults $tokuReport) -Raw | ConvertFrom-Json
     if ($tokuResult.passed -ne $true) { throw "Failed report: $tokuReport" }
 }

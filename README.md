@@ -140,6 +140,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Compile-CrtShade
 
 This uses the Windows `d3dcompiler_47.dll`; no extra shader compiler package is required.
 
+## Security Radar (review feature)
+
+The **security radar** navigation opens a read-only, manual Windows inspection
+window with an ATT&CK map, protection state, persistence comparisons,
+authentication events and TCP/UDP snapshots. It needs no paid service or elevation.
+See [coverage, limits, provenance and checks](docs/SECURITY-RADAR.md).
+
 ## License
 
 Copyright (c) 2026 Tokumaru Labs. GNU GPL version 3 only, with a narrow
