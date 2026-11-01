@@ -21,6 +21,7 @@ public static class Program
     public static int Main(string[] args)
     {
         Velopack.VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
+        if (args.Contains("--radar-self-test") || args.Contains("--radar-live-check")) return SecurityRadarChecks.RunCli(args, args.Contains("--radar-live-check"));
         if (args.Contains("--self-test")) return Checks.Run(args);
         bool preview = args.Contains("--preview");
         string? Option(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
@@ -32,11 +33,13 @@ public static class Program
         if (gallery != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var updateCheck = Option("--update-check-dir");
         if (updateCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var radarCheck = Option("--radar-check-dir");
+        if (radarCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Retro.Install(app);
         var data = Option("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TokumaruLabs", "TokuControl");
         var store = new SettingsStore(data);
-        var main = new ConsoleWindow(store, preview, !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir"));
+        var main = new ConsoleWindow(store, preview, !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"));
         app.MainWindow = main;
         var qa = Option("--capture-dir");
         if (qa != null) main.Loaded += async (_, _) => await main.CaptureChecks(qa);
@@ -46,6 +49,7 @@ public static class Program
         if (layoutCheck != null) main.Loaded += async (_, _) => await main.LayoutChecks(layoutCheck);
         if (gallery != null) main.Loaded += async (_, _) => await main.CaptureGallery(gallery);
         if (updateCheck != null) main.Loaded += async (_, _) => await main.CaptureUpdateChecks(updateCheck);
+        if (radarCheck != null) main.Loaded += async (_, _) => await main.CaptureRadarChecks(radarCheck);
         return app.Run(main);
     }
 }
@@ -169,6 +173,7 @@ public sealed partial class ConsoleWindow : RetroWindow
             slowTimer.Stop(); audioTimer.Stop(); peakTimer.Stop(); crtSaveTimer.Stop();
             settings.Windows["main"] = WindowPlacement.Read(this);
             foreach (var window in modules.Values.ToArray()) window.Close();
+            radarWindow?.Close();
             audio.Dispose(); routes.Dispose(); var error = store.Save(settings);
             if (error != null) MessageBox.Show(error + "\n" + store.FilePath, "TOKU CONTROL", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
@@ -189,7 +194,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     Border BuildNavigation()
     {
         var p = new StackPanel { Margin = new Thickness(4) };
-        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
+        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("security", "security radar"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
         {
             var b = Retro.Button("+ " + name, name + " を表示", () => SelectSection(key));
             b.HorizontalContentAlignment = HorizontalAlignment.Left; b.Margin = new Thickness(0, 2, 0, 2); b.BorderThickness = new Thickness(0); b.Height = 29;
@@ -198,10 +203,11 @@ public sealed partial class ConsoleWindow : RetroWindow
         p.Children.Add(Retro.Label("──────────────", Retro.Dim, 10));
         p.Children.Add(Retro.Label("[ LOCAL BUS ]\nNO TELEMETRY\n\nUPDATES / OPTIONAL", Retro.Dim, 9));
         nav["local"].Background = Retro.Title;
-        return new Border { BorderBrush = Retro.Border, BorderThickness = new Thickness(1), Margin = new Thickness(4), Child = p };
+        return new Border { BorderBrush = Retro.Border, BorderThickness = new Thickness(1), Margin = new Thickness(4), Child = new ScrollViewer { Content = p, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } };
     }
     void SelectSection(string key)
     {
+        if (key == "security") { ShowSecurityRadar(); return; }
         if (key == "updates") { ShowUpdates(); return; }
         if (key is "clock" or "settings") { ShowModule(key == "clock" ? "clock" : "crt"); return; }
         section = key;
@@ -790,6 +796,7 @@ static class Checks
             foreach (var test in RoutingChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
             foreach (var test in LauncherChecks.Run()) Check(test.Key, test.Value);
             foreach (var test in UpdaterChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
+            foreach (var test in SecurityRadarChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
             using var routes = new WindowsOutputRoutes(); results["nativeOutputs"] = routes.List();
             results["nativeDefaults"] = Enumerable.Range(0, 3).Select(routes.Default).ToArray();
             var probe = new SystemProbe(); probe.Read(); Thread.Sleep(1200); var p = probe.Read(); results["systemRead"] = p; Check("systemValuesValid", p.Cpu is >= 0 and <= 100 && p.Ram is >= 0 and <= 100 && p.Disk is >= 0 and <= 100);

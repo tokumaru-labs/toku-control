@@ -1,0 +1,48 @@
+name: Windows build and checks
+on:
+  pull_request:
+  push:
+    branches: [main, codex/security-radar]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+      - name: Build Windows portable application
+        shell: pwsh
+        run: |
+          ./build.ps1
+      - name: Deterministic radar and existing routing, launcher, updater checks
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--radar-self-test --result artifacts/ci-checks.json' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'Checks failed' }
+          $report = Get-Content artifacts/ci-checks.json -Raw | ConvertFrom-Json
+          if ($report.passed -ne $true) { throw 'Missing passing report' }
+      - name: Startup path and collection bounds regressions
+        shell: powershell
+        run: ./tools/Test-RadarProbes.ps1
+      - name: Simulated WPF radar rendering and navigation
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-state --radar-check-dir artifacts/ci-radar' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'WPF checks failed' }
+          $report = Get-Content artifacts/ci-radar/radar-ui-checks.json -Raw | ConvertFrom-Json
+          if ($report.passed -ne $true) { throw 'Missing passing UI report' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-checks
+          path: |
+            artifacts/ci-checks.json
+            artifacts/radar-probe-checks.json
+            artifacts/ci-radar/
+          retention-days: 7
