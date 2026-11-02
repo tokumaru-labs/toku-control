@@ -80,6 +80,10 @@ public sealed partial class ConsoleWindow
             checks["finished timer returns the earned node and then rests"] = traceConsole.Prompt == "toku> rest.result" &&
                 traceConsole.Reply.Contains("COMPLETE  /  NODE 02") && !traceConsole.Animating;
             Capture(w, Path.Combine(directory, "clock-trace.png"));
+            Click(startRest); Click(resetRest);
+            await Task.Delay(1900);
+            checks["a rapid start and cancel replaces the unfinished command"] = traceConsole.Prompt == "toku> rest.cancel" &&
+                traceConsole.Reply.Contains("CANCELLED") && !traceConsole.Animating && journal.Read().Days == 1;
             // Cross midnight during this second timer. Closing only the clock must not cancel it.
             Click(startRest); w.Close(); time.Add(TimeSpan.FromMinutes(5)); Tick(); ShowModule("clock", false);
             checks["reopened clock retains TRACE"] = clockTheme.SelectedIndex == 1 && room.Source == TraceScenes.Value[1] && store.Load().ClockTrace;

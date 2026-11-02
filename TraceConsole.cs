@@ -43,7 +43,7 @@ internal sealed class TraceConsole : Border
     {
         if (show && (Visibility != Visibility.Visible || command != next))
         {
-            elapsed.Reset(); settled = false;
+            Stop(); elapsed.Reset(); settled = false;
         }
         command = next; reply = output; motion = animate;
         Visibility = show ? Visibility.Visible : Visibility.Collapsed;
