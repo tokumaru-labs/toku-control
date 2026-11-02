@@ -18,7 +18,8 @@ Downloads and matching source:
 https://github.com/tokumaru-labs/toku-control/releases
 
 SHOW ALL: main console with three modules stacked on the right.
-Drag the main title bar to move visible modules together.
+Clock, meter and CRT buttons toggle their windows. Filled dot = visible.
+Drag the main title bar to move adjacent or overlapping modules. Detached modules stay put.
 SYSTEM PULSE: open SYSTEM / DISPLAYS > for PC and monitor details.
 QUICK LAUNCH: Command Prompt and Windows PowerShell are available.
 Right-click a supported tool (or press Shift+F10) > Run as administrator.

@@ -337,6 +337,7 @@ public static class WindowPlacement
         return GetMonitorInfo(MonitorFromRect(ref r, 2), ref info)
             ? new Rect(info.Work.Left, info.Work.Top, info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top) : Rect.Empty;
     }
+    public static double ModuleGap(Window console) => Math.Ceiling(ModuleLayout.GapDip * VisualTreeHelper.GetDpi(console).DpiScaleX);
     public static bool Tile(RetroWindow console, IReadOnlyList<RetroWindow> modules)
     {
         if (modules.Count == 0) return true;
@@ -345,7 +346,7 @@ public static class WindowPlacement
         foreach (var module in modules) if (module.WindowState != WindowState.Normal) module.WindowState = WindowState.Normal;
         var dpi = VisualTreeHelper.GetDpi(console); var main = NativeBounds(console);
         var sizes = modules.Select(w => (w.Key, new Size(Math.Ceiling(w.MinWidth * dpi.DpiScaleX), Math.Ceiling(w.MinHeight * dpi.DpiScaleY)))).ToArray();
-        var plan = ModuleLayout.Calculate(work, main.TopLeft, main.Size, new Size(console.MinWidth * dpi.DpiScaleX, console.MinHeight * dpi.DpiScaleY), sizes, Math.Ceiling(12 * dpi.DpiScaleX));
+        var plan = ModuleLayout.Calculate(work, main.TopLeft, main.Size, new Size(console.MinWidth * dpi.DpiScaleX, console.MinHeight * dpi.DpiScaleY), sizes, ModuleGap(console));
         if (plan == null) return false;
         foreach (var window in modules.Prepend(console))
         {
@@ -353,6 +354,29 @@ public static class WindowPlacement
             SetWindowPos(new WindowInteropHelper(window).Handle, IntPtr.Zero, (int)frame.X, (int)frame.Y, (int)frame.Width, (int)frame.Height, 0x0014);
         }
         return true;
+    }
+    public static void PlaceNewModule(RetroWindow console, RetroWindow module, IEnumerable<RetroWindow> modules)
+    {
+        var main = NativeBounds(console);
+        var work = WorkArea(console);
+        var size = NativeBounds(module).Size;
+        var occupied = modules.Where(w => w != module && w.IsVisible && w.WindowState == WindowState.Normal).Select(NativeBounds).ToArray();
+        // Try the sides without resizing the console or disturbing a manually placed sibling.
+        foreach (double gap in new[] { ModuleGap(console), 0 })
+        {
+            var slots = from x in new[] { main.Right + gap, main.Left - size.Width - gap }
+                        from y in new[] { main.Top }.Concat(occupied.Select(r => r.Bottom + gap))
+                        select new Point(x, y);
+            var ends = new[] { new Point(main.Left, main.Bottom + gap), new Point(main.Left, main.Top - size.Height - gap) };
+            foreach (var point in slots.Concat(ends))
+            {
+                var frame = new Rect(point, size);
+                if (!work.Contains(frame) || occupied.Any(r => Rect.Intersect(frame, r) is { Width: > 0, Height: > 0 })) continue;
+                Place(module, new(point.X, point.Y, module.Topmost));
+                return;
+            }
+        }
+        OverConsole(console, module);
     }
     public static void OverConsole(RetroWindow console, RetroWindow module)
     {

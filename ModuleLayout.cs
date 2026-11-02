@@ -5,6 +5,15 @@ namespace TokuControl;
 // Physical pixels on the console monitor. Modules keep a single right column.
 public static class ModuleLayout
 {
+    // The arranged stack has a deliberate gutter, so its windows count as attached.
+    public const double GapDip = 12;
+    public static bool Attached(Rect console, Rect module, double gap)
+    {
+        if (console.Width <= 0 || console.Height <= 0 || module.Width <= 0 || module.Height <= 0) return false;
+        double overlapX = Math.Min(console.Right, module.Right) - Math.Max(console.Left, module.Left);
+        double overlapY = Math.Min(console.Bottom, module.Bottom) - Math.Max(console.Top, module.Top);
+        return (overlapX > 0 && overlapY >= -gap) || (overlapY > 0 && overlapX >= -gap);
+    }
     public sealed record Plan(string Mode, IReadOnlyDictionary<string, Rect> Frames);
     public static Plan? Calculate(Rect work, Point anchor, Size main, Size minimumMain,
         IReadOnlyList<(string Key, Size Size)> modules, double gap)

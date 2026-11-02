@@ -10,7 +10,7 @@ them is not a claim that every audio device, display layout or Windows build is 
 3. Preview UI capture: operations against a simulated backend.
 4. Module checks: visibility, closing/recreation, pinning and module buttons.
 5. CRT checks: individual rendered pixel changes, RAW/restore/dim, state persistence.
-6. Layout checks: vertical-stack geometry, no overlap, restore/persistence and grouped moves.
+6. Layout checks: vertical-stack geometry, restore/persistence, and title drags with attached and detached modules.
 7. Update dialog: offer/Yes button layout, Later without downloading, explicit Yes wiring and persisted startup-check preference.
 
 The service checks also exercise the production update session with controlled
@@ -57,8 +57,10 @@ All require a Windows interactive desktop. The rendering tests are not intended
 for a headless Linux runner. `--preview` does not make the normal system panel's
 values fictional; only the explicit gallery capture replaces displayed values with demo data.
 
-The development build was also checked with actual mouse dragging in both
-directions: visible modules followed the main window by the same displacement.
+The module check uses actual window frames for toggle, detach and reattach behavior.
+In a separate Windows preview, dragging the main title by (+112, +46) physical pixels
+moved the adjacent clock by the same displacement while the detached meter stayed at
+its original coordinates. Two clicks on METER hid it and showed it again.
 Actual default-output switching and rollback were checked on the development
 PC; optical eject worked there, while tray close was unsupported on that drive.
 
