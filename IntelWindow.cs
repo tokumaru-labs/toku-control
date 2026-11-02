@@ -42,7 +42,7 @@ internal sealed class IntelWindow : RetroWindow
         </ControlTemplate>
         """);
     internal readonly Button Pause, Refresh, Cache, Saved, Stream, Bookmark, Original, Discussion;
-    readonly DispatcherTimer clock = new() { Interval = TimeSpan.FromMilliseconds(1600) };
+    CancellationTokenSource? playbackClock;
     readonly IntelSource[] sources = Enum.GetValues<IntelSource>();
     View view = View.Stream;
     internal bool Paused { get; private set; }
@@ -99,16 +99,41 @@ internal sealed class IntelWindow : RetroWindow
         var actions = Retro.Row(Original, Discussion, Bookmark); DockPanel.SetDock(actions, Dock.Bottom); detail.Children.Add(actions);
         detail.Children.Add(new ScrollViewer { Content = Retro.Col(headline, evidence), VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Grid.SetRow(detail, 1); body.Children.Add(detail); Layout.Children.Add(body);
-        Online.Checked += (_, _) => { Switch(View.Stream); foreach (var s in sources.Where(Allowed)) Start(s, true); clock.Start(); Controls(); };
+        Online.Checked += (_, _) => { Switch(View.Stream); foreach (var s in sources.Where(Allowed)) Start(s, true); StartClock(); Controls(); };
         Online.Unchecked += (_, _) =>
         {
-            clock.Stop(); foreach (var s in sources) { Cancel(s); ClearStream(s); State(s, "OFF"); }
+            StopClock(); foreach (var s in sources) { Cancel(s); ClearStream(s); State(s, "OFF"); }
             if (view == View.Stream) selected = null;
             DisplayRows(); Detail(); Controls();
         };
-        clock.Tick += (_, _) => { foreach (var s in sources.Where(Allowed)) Start(s, false); if (!Paused && view == View.Stream) Advance(); };
-        Closed += (_, _) => { closed = true; clock.Stop(); foreach (var s in sources) Cancel(s); };
+        Closed += (_, _) => { closed = true; StopClock(); foreach (var s in sources) Cancel(s); };
         DisplayRows(); Detail(); Controls();
+    }
+    void StartClock()
+    {
+        StopClock();
+        playbackClock = new(); _ = RunClock(playbackClock);
+    }
+    void StopClock() { var previous = playbackClock; playbackClock = null; previous?.Cancel(); }
+    async Task RunClock(CancellationTokenSource lifetime)
+    {
+        var token = lifetime.Token;
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1600));
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                // Use the normal UI queue; background-priority dispatcher timers can stall on a busy desktop.
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (closed || playbackClock != lifetime || token.IsCancellationRequested) return;
+                    foreach (var s in sources.Where(Allowed)) Start(s, false);
+                    if (!Paused && view == View.Stream) Advance();
+                }, DispatcherPriority.Normal, token).Task.ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested || Dispatcher.HasShutdownStarted) { }
+        finally { lifetime.Dispose(); }
     }
     bool Allowed(IntelSource s) => !closed && Online.IsChecked == true && Choices[s].IsChecked == true;
     void Cancel(IntelSource s) { if (active.Remove(s, out var req)) req.Stop.Cancel(); }
