@@ -178,8 +178,14 @@ public sealed partial class ConsoleWindow : RetroWindow
         Closing += (_, e) =>
         {
             if (outputBusy) { e.Cancel = true; closeAfterSwitch = true; Footer.Text = "WAIT / FINISHING OUTPUT SWITCH"; return; }
-            if (shuttingDown) return; shuttingDown = true;
-            rest.Advance();
+            if (shuttingDown) return;
+            if (!rest.PrepareToExit() && MessageBox.Show(this,
+                "完了した休憩を保存できません。未保存のまま終了しますか？\n「いいえ」で時計に戻り、再保存できます。",
+                "ねむまる / 未保存の休憩", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                e.Cancel = true; ShowModule("clock"); Tick(); return;
+            }
+            shuttingDown = true;
             groupDrag?.Dispose(); groupDrag = null;
             slowTimer.Stop(); audioTimer.Stop(); peakTimer.Stop(); crtSaveTimer.Stop();
             settings.Windows["main"] = WindowPlacement.Read(this);

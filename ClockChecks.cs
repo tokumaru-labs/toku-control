@@ -57,7 +57,8 @@ public sealed partial class ConsoleWindow
             checks["closed module continues; date is the scheduled finish day"] = rest.Growth.Days == 2 && journal.Read().LastDay == new DateOnly(2026, 1, 3) && !rest.Running;
             Click(startRest); time.Add(TimeSpan.FromMinutes(5)); Tick();
             checks["two sessions on same local day count once"] = rest.Growth.Days == 2;
-            checks["idle days do not increase or erase growth"] = journal.Complete(new DateOnly(2026, 1, 1)).Days == 2 && journal.Read().Days == 2;
+            time.Add(TimeSpan.FromDays(2)); Tick();
+            checks["idle days do not increase or erase growth"] = rest.Growth.Days == 2 && journal.Read().Days == 2;
             var future = new DateOnly(2026, 1, 8);
             await Task.WhenAll(Task.Run(() => journal.Complete(future)), Task.Run(() => new HackerJournal(Path.Combine(store.DirectoryPath, "nemumaru-preview")).Complete(future)));
             checks["two writers share one daily credit and reload it"] = journal.Read().Days == 3;
@@ -65,8 +66,15 @@ public sealed partial class ConsoleWindow
             string broken = Path.Combine(store.DirectoryPath, "blocked-journal"); File.WriteAllText(broken, "fixture");
             var failed = new HackerRest(new HackerJournal(broken), time); failed.Start(5); time.Add(TimeSpan.FromMinutes(5)); failed.Advance();
             checks["failed save remains pending, no false growth"] = failed.PendingSave && failed.Growth.Days == 0 && failed.Warning != null && !failed.Start(5);
-            File.Delete(broken); failed.RetrySave(); failed.RetrySave();
-            checks["save retry credits original completion once"] = !failed.PendingSave && failed.Growth.Days == 1;
+            checks["persistent failure prevents silent exit"] = !failed.PrepareToExit() && failed.PendingSave;
+            var originalDay = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+            File.Delete(broken);
+            var otherWindow = new HackerJournal(broken);
+            otherWindow.Complete(originalDay.AddDays(1));
+            checks["exit retries original date even after a newer completion"] = failed.PrepareToExit() && !failed.PendingSave && failed.Growth.Days == 2 &&
+                failed.Growth.EarnedDates!.Contains(originalDay) && otherWindow.Read().LastDay == originalDay.AddDays(1);
+            failed.RetrySave();
+            checks["late retry cannot double credit"] = otherWindow.Complete(originalDay).Days == 2;
             string capDir = Path.Combine(store.DirectoryPath, "cap-fixture"); Directory.CreateDirectory(capDir);
             string capFile = Path.Combine(capDir, "growth-v1.json");
             File.WriteAllText(capFile, JsonSerializer.Serialize(new HackerGrowth(364, future)));

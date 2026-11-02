@@ -73,6 +73,8 @@ public sealed partial class ConsoleWindow
         minuteWheel.IsEnabled = !rest.Running && !rest.PendingSave;
         startRest.IsEnabled = !rest.Running;
         startRest.Content = rest.PendingSave ? "再保存" : "START";
+        startRest.ToolTip = rest.PendingSave ? "完了した休憩の日付を保存し直す" : "選んだ分数で無音タイマーを開始";
+        AutomationProperties.SetName(startRest, rest.PendingSave ? "再保存" : "START");
         resetRest.IsEnabled = !rest.PendingSave && (rest.Running || rest.Finished);
         window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
     }
