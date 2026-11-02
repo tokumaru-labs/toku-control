@@ -48,7 +48,31 @@ public sealed partial class ConsoleWindow
             clockTheme.SelectedIndex = 1;
             checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
                 minuteWheel.Value == 5 && journal.Read().Days == 0 && room.Source == TraceScenes.Value[0] && store.Load().ClockTrace;
+            checks["code rain follows Windows motion setting"] = traceRain.IsVisible && traceRain.Flowing == SystemParameters.ClientAreaAnimation;
+            byte[] RainPixels()
+            {
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(traceRain.ActualWidth),
+                    (int)Math.Ceiling(traceRain.ActualHeight), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(traceRain);
+                var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+                bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+                return pixels;
+            }
+            var flowingFrame = RainPixels(); await Task.Delay(460);
+            checks["glyphs are drawn and move in the visible artwork"] = flowingFrame.Any(b => b != 0) &&
+                (!SystemParameters.ClientAreaAnimation || !flowingFrame.SequenceEqual(RainPixels()));
+            Click(traceMotion);
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+            var pausedFrame = RainPixels(); await Task.Delay(325);
+            checks["paused glyph positions stay still"] = pausedFrame.SequenceEqual(RainPixels());
+            checks["pause stops drawing and preserves timer"] = !traceRain.Flowing && !store.Load().ClockCodeMotion && remaining.Text.Contains("03:00");
+            Click(traceMotion);
+            w.Hide();
+            checks["hidden clock stops rain"] = !traceRain.Flowing;
+            w.Show(); w.UpdateLayout();
+            checks["visible clock resumes requested motion"] = traceRain.Flowing == SystemParameters.ClientAreaAnimation;
             clockTheme.SelectedIndex = 0;
+            checks["room has no rain or motion control"] = !traceRain.IsVisible && !traceRain.Flowing && !traceMotion.IsVisible;
             checks["room can be restored while running"] = rest.Running && room.Source == HackerScenes.Value[0] && !store.Load().ClockTrace;
             Capture(w, Path.Combine(directory, "clock-running.png"));
             Click(resetRest); checks["reset gives no growth"] = !rest.Running && rest.Growth.Days == 0 && journal.Read().Days == 0;

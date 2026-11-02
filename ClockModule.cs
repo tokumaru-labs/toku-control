@@ -21,6 +21,8 @@ public sealed partial class ConsoleWindow
             frame.Freeze(); return (BitmapSource)frame;
         }).ToArray();
     }
+    TraceRain traceRain = null!;
+    Button traceMotion = null!;
     ComboBox clockTheme = null!;
     MinuteWheel minuteWheel = null!;
     Image room = null!;
@@ -48,8 +50,21 @@ public sealed partial class ConsoleWindow
             Save();
             RenderRest(window);
         };
-        DockPanel.SetDock(clockTheme, Dock.Top); art.Children.Add(clockTheme);
-        DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel); art.Children.Add(room); body.Children.Add(art);
+        traceRain = new TraceRain(window);
+        traceMotion = Retro.Button("Ⅱ", "コードの流れを一時停止", () =>
+        {
+            settings.ClockCodeMotion = !settings.ClockCodeMotion;
+            Save();
+            RenderRest(window);
+        });
+        traceMotion.Width = 26; traceMotion.Height = traceMotion.MinHeight = 23;
+        traceMotion.Margin = new Thickness(2, 0, 0, 0); traceMotion.Padding = new Thickness(0);
+        var themeRow = new DockPanel();
+        DockPanel.SetDock(traceMotion, Dock.Right); themeRow.Children.Add(traceMotion); themeRow.Children.Add(clockTheme);
+        DockPanel.SetDock(themeRow, Dock.Top); art.Children.Add(themeRow);
+        DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel);
+        var scene = new Grid(); scene.Children.Add(room); scene.Children.Add(traceRain);
+        art.Children.Add(scene); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(controls, 1); body.Children.Add(controls);
@@ -81,6 +96,13 @@ public sealed partial class ConsoleWindow
         room.Source = (settings.ClockTrace ? TraceScenes : HackerScenes).Value[growth.Scene];
         roomLabel.Text = $"{(settings.ClockTrace ? growth.TraceName : growth.SceneName)} · DAY {growth.Days:000}";
         AutomationProperties.SetName(room, "ねむまる・ハッカー版 / " + roomLabel.Text);
+        traceRain.Configure(settings.ClockTrace, settings.ClockCodeMotion);
+        traceMotion.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
+        traceMotion.IsEnabled = SystemParameters.ClientAreaAnimation;
+        traceMotion.Content = settings.ClockCodeMotion && traceMotion.IsEnabled ? "Ⅱ" : "▶";
+        string motionHint = !traceMotion.IsEnabled ? "Windowsの設定で動きを停止中" :
+            settings.ClockCodeMotion ? "コードの流れを一時停止" : "コードの流れを再開";
+        traceMotion.ToolTip = motionHint; AutomationProperties.SetName(traceMotion, motionHint);
         int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
         remaining.Text = rest.Running ? $"残り {seconds / 60:00}:{seconds % 60:00}" : rest.Finished ? "休憩完了" : "休憩タイマー";
         timerBar.Value = rest.Running ? 1 - rest.Remaining.TotalMinutes / rest.Minutes : rest.Finished ? 1 : 0;
@@ -90,6 +112,6 @@ public sealed partial class ConsoleWindow
         startRest.ToolTip = rest.PendingSave ? "完了した休憩の日付を保存し直す" : "選んだ分数で無音タイマーを開始";
         AutomationProperties.SetName(startRest, rest.PendingSave ? "再保存" : "START");
         resetRest.IsEnabled = !rest.PendingSave && (rest.Running || rest.Finished);
-        window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : settings.ClockTrace ? "TRACE  /  休憩日数で育つ通信図   ·   無音タイマー" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
+        window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : settings.ClockTrace ? $"> rest.days={growth.Days:000}  stage={growth.Scene + 1:00}/04" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
     }
 }
