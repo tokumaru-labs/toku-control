@@ -389,7 +389,21 @@ public static class WindowPlacement
         double y = main.Y + Math.Clamp(offset, 0, Math.Max(0, main.Height - height - 20 * dpi.DpiScaleY));
         Place(module, new(x, y, module.Topmost));
     }
-    public static void Place(RetroWindow window, WindowPosition? saved = null, int offset = 0)
+    static bool TitleReachable(RetroWindow window, RectI frame)
+    {
+        var dpi = VisualTreeHelper.GetDpi(window);
+        // Exclude the buttons at the right of the title bar: this part must be draggable.
+        var title = frame;
+        title.Right -= (int)Math.Ceiling(58 * dpi.DpiScaleX);
+        title.Bottom = Math.Min(frame.Bottom, frame.Top + (int)Math.Ceiling(28 * dpi.DpiScaleY));
+        if (title.Right <= title.Left || title.Bottom <= title.Top) return false;
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(MonitorFromRect(ref title, 0), ref info)) return false;
+        double visibleWidth = Math.Min(title.Right, info.Work.Right) - Math.Max(title.Left, info.Work.Left);
+        double visibleHeight = Math.Min(title.Bottom, info.Work.Bottom) - Math.Max(title.Top, info.Work.Top);
+        return visibleWidth >= 32 * dpi.DpiScaleX && visibleHeight >= 10 * dpi.DpiScaleY;
+    }
+    public static void Place(RetroWindow window, WindowPosition? saved = null, int offset = 0, bool keepReachableTitle = false)
     {
         if (saved?.Width is > 0) window.Width = Math.Max(window.MinWidth, saved.Width.Value);
         if (saved?.Height is > 0) window.Height = Math.Max(window.MinHeight, saved.Height.Value);
@@ -397,10 +411,14 @@ public static class WindowPlacement
         int x = saved == null ? current.Left + offset : (int)Math.Clamp(saved.X, -100000, 100000);
         int y = saved == null ? current.Top + offset : (int)Math.Clamp(saved.Y, -100000, 100000);
         var desired = new RectI { Left = x, Top = y, Right = x + current.Right - current.Left, Bottom = y + current.Bottom - current.Top };
-        var monitor = MonitorFromRect(ref desired, 2); var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (!GetMonitorInfo(monitor, ref info)) return;
-        int width = Math.Min(current.Right - current.Left, info.Work.Right - info.Work.Left), height = Math.Min(current.Bottom - current.Top, info.Work.Bottom - info.Work.Top);
-        x = Math.Clamp(x, info.Work.Left, info.Work.Right - width); y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
+        int width = current.Right - current.Left, height = current.Bottom - current.Top;
+        if (!keepReachableTitle || !TitleReachable(window, desired))
+        {
+            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+            if (!GetMonitorInfo(MonitorFromRect(ref desired, 2), ref info)) return;
+            width = Math.Min(width, info.Work.Right - info.Work.Left); height = Math.Min(height, info.Work.Bottom - info.Work.Top);
+            x = Math.Clamp(x, info.Work.Left, info.Work.Right - width); y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
+        }
         SetWindowPos(handle, IntPtr.Zero, x, y, width, height, 0x0014); // preserve Z order and focus
         if (saved != null) window.Topmost = saved.Pin;
     }

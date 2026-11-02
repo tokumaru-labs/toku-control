@@ -61,6 +61,10 @@ The module check uses actual window frames for toggle, detach and reattach behav
 In a separate Windows preview, dragging the main title by (+112, +46) physical pixels
 moved the adjacent clock by the same displacement while the detached meter stayed at
 its original coordinates. Two clicks on METER hid it and showed it again.
+The WPF checks also cover a reachable title at the work-area boundary on hide/show
+and close/reopen, and recovery when a module is completely off screen. A known
+limitation in the existing settings path is that closing a minimized module can
+save minimized coordinates for the next launch.
 Actual default-output switching and rollback were checked on the development
 PC; optical eject worked there, while tray close was unsupported on that drive.
 

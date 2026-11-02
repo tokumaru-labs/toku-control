@@ -503,7 +503,7 @@ public sealed partial class ConsoleWindow : RetroWindow
         {
             if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
             existing.Show();
-            WindowPlacement.Place(existing, WindowPlacement.Read(existing));
+            WindowPlacement.Place(existing, WindowPlacement.Read(existing), keepReachableTitle: true);
             if (reveal) existing.Activate();
             Log("INFO", key + " module shown"); return;
         }
@@ -574,7 +574,7 @@ public sealed partial class ConsoleWindow : RetroWindow
         modules.Add(key, w); w.ShowInTaskbar = true; w.Apply(settings);
         w.SourceInitialized += (_, _) =>
         {
-            if (settings.Windows.TryGetValue(key, out var saved)) WindowPlacement.Place(w, saved);
+            if (settings.Windows.TryGetValue(key, out var saved)) WindowPlacement.Place(w, saved, keepReachableTitle: true);
             else if (reveal) WindowPlacement.PlaceNewModule(this, w, modules.Values);
             else WindowPlacement.OverConsole(this, w);
         };
@@ -717,6 +717,19 @@ public sealed partial class ConsoleWindow : RetroWindow
             var custom = WindowPlacement.NativeBounds(moved);
             Click("SPAWN METER"); Click("SPAWN METER"); await Task.Delay(100);
             checks["customMeterPositionAndPinRestored"] = Usable(moved) && WindowPlacement.NativeBounds(moved) == custom && moved.Topmost;
+            // Park the meter across a work-area edge. Its title is reachable on this desktop
+            // regardless of whether another physical display continues past that edge.
+            void MoveMeter(Point to) => DragCheckPosition(new System.Windows.Interop.WindowInteropHelper(moved).Handle, IntPtr.Zero, (int)to.X, (int)to.Y, 0, 0, 0x0015);
+            var work = WindowPlacement.WorkArea(this);
+            MoveMeter(new Point(work.Right - custom.Width / 2, work.Top + 36));
+            var crossingEdge = WindowPlacement.NativeBounds(moved);
+            Click("METER"); Click("METER");
+            checks["togglingDoesNotClampReachableMonitorEdge"] = WindowPlacement.NativeBounds(moved) == crossingEdge;
+            moved.Close(); Click("METER"); moved = modules["meter"];
+            checks["recreatedMeterRestoresReachableMonitorEdge"] = WindowPlacement.NativeBounds(moved) == crossingEdge && moved.Topmost;
+            MoveMeter(new Point(-90000, -90000)); Click("METER"); Click("METER");
+            checks["togglingRecoversUnreachableTitle"] = WindowPlacement.WorkArea(moved).Contains(WindowPlacement.NativeBounds(moved));
+            MoveMeter(custom.TopLeft);
             moved.Topmost = false;
             WindowState = WindowState.Minimized; await Task.Delay(100);
             checks["modulesIndependentOfMainMinimize"] = Usable(modules["meter"]) && Usable(modules["crt"]);
