@@ -22,6 +22,7 @@
     <Compile Remove="tests\**\*.cs" />
     <EmbeddedResource Include="SecurityRadarProbe.ps1" />
     <Resource Include="Assets\CrtDisplay.ps" />
+    <Resource Include="Assets\NemumaruHacker.png" />
     <Content Include="runtime-license\LICENSE.txt" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="runtime-license\ThirdPartyNotices.txt" Link="ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="LICENSE;LICENSE-NET-EXCEPTION;THIRD-PARTY.md;README.md;README.ja.md;START-HERE.txt;VERIFICATION.md;CHANGELOG.md;UPDATING.md" CopyToPublishDirectory="PreserveNewest" />
