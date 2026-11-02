@@ -30,8 +30,13 @@ public sealed class WindowGroupDrag : IDisposable
     void CaptureOrigins()
     {
         if (!NormalVisible(main)) return;
-        origin = WindowPlacement.NativeBounds(main).TopLeft;
-        followers = modules().Where(NormalVisible).Select(w => (w, WindowPlacement.NativeBounds(w).TopLeft)).ToArray();
+        var console = WindowPlacement.NativeBounds(main);
+        origin = console.TopLeft;
+        double gap = WindowPlacement.ModuleGap(main);
+        followers = modules().Where(NormalVisible)
+            .Select(window => (Window: window, Bounds: WindowPlacement.NativeBounds(window)))
+            .Where(item => ModuleLayout.Attached(console, item.Bounds, gap))
+            .Select(item => (item.Window, item.Bounds.TopLeft)).ToArray();
         captured = true;
     }
     void Follow()

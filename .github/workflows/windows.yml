@@ -43,6 +43,12 @@ jobs:
           $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-intel-state --intel-check-dir artifacts/ci-intel' -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw 'Intel Stream checks failed' }
           if ((Get-Content artifacts/ci-intel/intel-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing Intel Stream report' }
+      - name: WPF module toggles and attached-window dragging
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-mod-state --module-check-dir artifacts/ci-mod' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'Module window checks failed' }
+          if ((Get-Content artifacts/ci-mod/module-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing module report' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -52,4 +58,5 @@ jobs:
             artifacts/radar-probe-checks.json
             artifacts/ci-radar/
             artifacts/ci-intel/
+            artifacts/ci-mod/
           retention-days: 7
