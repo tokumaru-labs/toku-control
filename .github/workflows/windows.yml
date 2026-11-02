@@ -37,6 +37,12 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'WPF checks failed' }
           $report = Get-Content artifacts/ci-radar/radar-ui-checks.json -Raw | ConvertFrom-Json
           if ($report.passed -ne $true) { throw 'Missing passing UI report' }
+      - name: Offline WPF Intel Stream checks with deterministic feeds
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-intel-state --intel-check-dir artifacts/ci-intel' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'Intel Stream checks failed' }
+          if ((Get-Content artifacts/ci-intel/intel-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing Intel Stream report' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -45,4 +51,5 @@ jobs:
             artifacts/ci-checks.json
             artifacts/radar-probe-checks.json
             artifacts/ci-radar/
+            artifacts/ci-intel/
           retention-days: 7

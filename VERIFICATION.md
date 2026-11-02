@@ -68,3 +68,10 @@ transitions, snap/maximize dragging, long-running sessions and other machines.
 
 Raw verification reports and captures are generated under `artifacts/verification`
 and ignored by Git because they can contain machine/device information.
+
+Intel Stream is included in `verify.ps1` and Windows PR CI using deterministic
+HTTP responses. The WPF check covers opt-in, source isolation, RSS/RDF and HN parsing,
+paused playback, safe links, saved headlines after reopening offline, and a late response
+after cancellation. CI does not depend on external news services. For a manual live
+check, run the built EXE with `--preview --data-dir <isolated-test-folder> --intel-live-check-dir <report-folder>`.
+This explicit check uses the three real public feeds with simulated audio and writes its own JSON report and screenshot.
