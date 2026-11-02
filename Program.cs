@@ -37,12 +37,16 @@ public static class Program
         if (radarCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var intelCheck = Option("--intel-check-dir") ?? Option("--intel-live-check-dir");
         if (intelCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var clockCheck = Option("--clock-check-dir");
+        if (clockCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Retro.Install(app);
         var data = Option("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TokumaruLabs", "TokuControl");
-        var store = new SettingsStore(data);
-        var main = new ConsoleWindow(store, preview, intelCheck == null && !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"));
+        var clockTime = clockCheck == null ? null : new RestCheckTime();
+        var store = new SettingsStore(clockCheck == null ? data : Path.Combine(data, "clock-check-" + Guid.NewGuid().ToString("N")));
+        var main = new ConsoleWindow(store, preview, clockCheck == null && intelCheck == null && !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"), clockTime);
         app.MainWindow = main;
+        if (clockCheck != null) main.Loaded += async (_, _) => await main.CheckRestClock(clockCheck, clockTime!);
         var qa = Option("--capture-dir");
         if (qa != null) main.Loaded += async (_, _) => await main.CaptureChecks(qa);
         var moduleCheck = Option("--module-check-dir");
@@ -105,8 +109,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     AudioState state = new(false, 0, false, "");
     SegmentClock? clock;
     TextBlock? clockDate;
-    TextBlock? timerText;
-    DateTimeOffset? timerEnd;
+    readonly HackerRest rest;
     bool updatingVolume, logPaused, shuttingDown, driveBusy, outputBusy, closeAfterSwitch;
     DateTime lastVolumeChange;
     bool volumePending;
@@ -114,9 +117,11 @@ public sealed partial class ConsoleWindow : RetroWindow
     public long PeakSamples { get; private set; }
     public long SystemSamples { get; private set; }
 
-    public ConsoleWindow(SettingsStore store, bool preview, bool enableUpdates = true) : base("main", "TOKU CONTROL v" + GithubUpdates.AppVersion + " -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
+    public ConsoleWindow(SettingsStore store, bool preview, bool enableUpdates = true, TimeProvider? timerTime = null) : base("main", "TOKU CONTROL v" + GithubUpdates.AppVersion + " -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
     {
         this.store = store; this.preview = preview; settings = store.Load();
+        rest = new HackerRest(new HackerJournal(Path.Combine(store.DirectoryPath, preview ? "nemumaru-preview" : "nemumaru")), timerTime ?? TimeProvider.System);
+        rest.Load();
         InitializeUpdates(enableUpdates);
         routes = preview ? new PreviewOutputRoutes() : new WindowsOutputRoutes();
         outputSwitcher = new(routes);
@@ -174,6 +179,7 @@ public sealed partial class ConsoleWindow : RetroWindow
         {
             if (outputBusy) { e.Cancel = true; closeAfterSwitch = true; Footer.Text = "WAIT / FINISHING OUTPUT SWITCH"; return; }
             if (shuttingDown) return; shuttingDown = true;
+            rest.Advance();
             groupDrag?.Dispose(); groupDrag = null;
             slowTimer.Stop(); audioTimer.Stop(); peakTimer.Stop(); crtSaveTimer.Stop();
             settings.Windows["main"] = WindowPlacement.Read(this);
@@ -451,10 +457,11 @@ public sealed partial class ConsoleWindow : RetroWindow
             var p = system.Read(); SystemSamples++;
             UpdateMetric(cpuValue, cpuGraph, p.Cpu); UpdateMetric(ramValue, ramGraph, p.Ram); UpdateMetric(diskValue, diskGraph, p.Disk);
         }
+        rest.Advance(); // A completed timer counts even when its module was hidden or closed.
         if (modules.TryGetValue("clock", out var cw) && cw.IsVisible)
         {
             clock?.SetTime(now); if (clockDate != null) clockDate.Text = now.ToString("yyyy.MM.dd  ddd", CultureInfo.InvariantCulture).ToUpperInvariant();
-            if (timerText != null) timerText.Text = timerEnd == null ? "TIMER / IDLE" : DateTimeOffset.UtcNow >= timerEnd ? "TIMER COMPLETE / SILENT" : "REMAIN / " + (timerEnd.Value - DateTimeOffset.UtcNow).ToString(@"hh\:mm\:ss");
+            RenderRest(cw);
         }
         if (volumePending && DateTime.UtcNow - lastVolumeChange > TimeSpan.FromMilliseconds(700))
         { volumePending = false; Log(preview ? "SIM" : "OK", $"master volume: {Math.Round(state.Volume * 100)}%"); }
@@ -510,14 +517,7 @@ public sealed partial class ConsoleWindow : RetroWindow
         RetroWindow w;
         if (key == "clock")
         {
-            w = new("clock", "CLOCK MODULE", 420, 212); clock = new SegmentClock { Width = 336, Height = 76, Margin = new Thickness(5, 6, 5, 2) };
-            clockDate = Retro.Label("", Retro.Green, 12); clockDate.HorizontalAlignment = HorizontalAlignment.Center;
-            timerText = Retro.Label("TIMER / IDLE", Retro.Dim, 10); timerText.HorizontalAlignment = HorizontalAlignment.Center;
-            void Timer(int minutes) { timerEnd = minutes == 0 ? null : DateTimeOffset.UtcNow.AddMinutes(minutes); Tick(); Log("INFO", minutes == 0 ? "timer reset" : $"silent timer set / {minutes} min"); }
-            var clockButtons = Retro.Row(Retro.Button("25 MIN", "25分の無音タイマー", () => Timer(25)), Retro.Button("50 MIN", "50分の無音タイマー", () => Timer(50)), Retro.Button("RESET", "タイマーを解除", () => Timer(0)), Retro.Button("PIN", "時計だけ最前面固定", () => { w.Topmost = !w.Topmost; SavePositions(); }));
-            clockButtons.HorizontalAlignment = HorizontalAlignment.Center;
-            w.Layout.Children.Add(Retro.Col(clock, clockDate, clockButtons, timerText));
-            w.Footer.Text = "LOCAL TIME / 24H / SILENT TIMER";
+            w = BuildClockModule();
         }
         else if (key == "meter")
         {
