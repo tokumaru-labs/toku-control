@@ -30,7 +30,7 @@ public sealed partial class ConsoleWindow
             var journal = new HackerJournal(Path.Combine(store.DirectoryPath, "nemumaru-preview"));
             checks["new room and prepared local art"] = rest.Growth.Days == 0 && room.Source == HackerScenes.Value[0] && HackerScenes.Value.Distinct().Count() == 4;
             checks["compact clock, art and controls visible"] = w.ActualWidth == 420 && w.ActualHeight == 212 && room.ActualHeight > 90 &&
-                new FrameworkElement[] { room, roomLabel, clock!, clockDate!, minuteWheel, startRest, resetRest, timerBar }.All(el =>
+                new FrameworkElement[] { room, roomLabel, clockTheme, clock!, clockDate!, minuteWheel, startRest, resetRest, timerBar }.All(el =>
                 {
                     var rect = el.TransformToAncestor(w).TransformBounds(new Rect(new Size(el.ActualWidth, el.ActualHeight)));
                     return rect.Width > 0 && rect.Height > 0 && rect.Left >= 0 && rect.Right <= w.ActualWidth && rect.Top >= 0 && rect.Bottom <= w.ActualHeight;
@@ -45,6 +45,11 @@ public sealed partial class ConsoleWindow
             checks["keyboard selects without starting"] = keyTen && minuteWheel.Value == 5 && !rest.Running;
             Click(startRest); time.Add(TimeSpan.FromMinutes(2)); Tick();
             checks["remaining time, visual bar and running controls"] = remaining.Text.Contains("03:00") && Math.Abs(timerBar.Value - .4) < .001 && !minuteWheel.IsEnabled && !startRest.IsEnabled;
+            clockTheme.SelectedIndex = 1;
+            checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
+                minuteWheel.Value == 5 && journal.Read().Days == 0 && room.Source == TraceScenes.Value[0] && store.Load().ClockTrace;
+            clockTheme.SelectedIndex = 0;
+            checks["room can be restored while running"] = rest.Running && room.Source == HackerScenes.Value[0] && !store.Load().ClockTrace;
             Capture(w, Path.Combine(directory, "clock-running.png"));
             Click(resetRest); checks["reset gives no growth"] = !rest.Running && rest.Growth.Days == 0 && journal.Read().Days == 0;
             Click(startRest); w.Hide(); time.Add(TimeSpan.FromMinutes(5)); Tick(); Tick();
@@ -52,8 +57,13 @@ public sealed partial class ConsoleWindow
             ShowModule("clock", false); Tick(); w.UpdateLayout();
             checks["room changes after first finished break"] = room.Source == HackerScenes.Value[1] && roomLabel.Text.Contains("001");
             Capture(w, Path.Combine(directory, "clock-room.png"));
+            clockTheme.SelectedIndex = 1; w.UpdateLayout();
+            checks["TRACE shares the earned day"] = rest.Growth.Days == 1 && journal.Read().Days == 1 &&
+                room.Source == TraceScenes.Value[1] && TraceScenes.Value.Distinct().Count() == 4 && roomLabel.Text.Contains("信号同期 · DAY 001");
+            Capture(w, Path.Combine(directory, "clock-trace.png"));
             // Cross midnight during this second timer. Closing only the clock must not cancel it.
             Click(startRest); w.Close(); time.Add(TimeSpan.FromMinutes(5)); Tick(); ShowModule("clock", false);
+            checks["reopened clock retains TRACE"] = clockTheme.SelectedIndex == 1 && room.Source == TraceScenes.Value[1] && store.Load().ClockTrace;
             checks["closed module continues; date is the scheduled finish day"] = rest.Growth.Days == 2 && journal.Read().LastDay == new DateOnly(2026, 1, 3) && !rest.Running;
             Click(startRest); time.Add(TimeSpan.FromMinutes(5)); Tick();
             checks["two sessions on same local day count once"] = rest.Growth.Days == 2;

@@ -8,9 +8,11 @@ namespace TokuControl;
 
 public sealed partial class ConsoleWindow
 {
-    static readonly Lazy<BitmapSource[]> HackerScenes = new(() =>
+    static readonly Lazy<BitmapSource[]> HackerScenes = new(() => LoadScenes("NemumaruHacker.png"));
+    static readonly Lazy<BitmapSource[]> TraceScenes = new(() => LoadScenes("TokuTrace.png"));
+    static BitmapSource[] LoadScenes(string filename)
     {
-        var atlas = new BitmapImage(new Uri("pack://application:,,,/TokuControl;component/Assets/NemumaruHacker.png"));
+        var atlas = new BitmapImage(new Uri($"pack://application:,,,/TokuControl;component/Assets/{filename}"));
         int width = atlas.PixelWidth / 2, height = atlas.PixelHeight / 2;
         return Enumerable.Range(0, 4).Select(i =>
         {
@@ -18,7 +20,8 @@ public sealed partial class ConsoleWindow
             var frame = new CroppedBitmap(atlas, new Int32Rect(i % 2 * width + 2, i / 2 * height + 2, width - 4, height - 4));
             frame.Freeze(); return (BitmapSource)frame;
         }).ToArray();
-    });
+    }
+    ComboBox clockTheme = null!;
     MinuteWheel minuteWheel = null!;
     Image room = null!;
     TextBlock roomLabel = null!, remaining = null!;
@@ -35,6 +38,17 @@ public sealed partial class ConsoleWindow
         RenderOptions.SetBitmapScalingMode(room, BitmapScalingMode.NearestNeighbor);
         roomLabel = Retro.Label("", Retro.Cyan, 11); roomLabel.HorizontalAlignment = HorizontalAlignment.Center;
         var art = new DockPanel { Margin = new Thickness(0, 1, 4, 0) };
+        clockTheme = new ComboBox { Height = 23, FontSize = 11, ToolTip = "時計の育成テーマ" };
+        clockTheme.Items.Add("部屋"); clockTheme.Items.Add("TRACE 端末");
+        clockTheme.SelectedIndex = settings.ClockTrace ? 1 : 0;
+        AutomationProperties.SetName(clockTheme, "時計の育成テーマ");
+        clockTheme.SelectionChanged += (_, _) =>
+        {
+            settings.ClockTrace = clockTheme.SelectedIndex == 1;
+            Save();
+            RenderRest(window);
+        };
+        DockPanel.SetDock(clockTheme, Dock.Top); art.Children.Add(clockTheme);
         DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel); art.Children.Add(room); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -64,8 +78,8 @@ public sealed partial class ConsoleWindow
     void RenderRest(RetroWindow window)
     {
         var growth = rest.Growth;
-        room.Source = HackerScenes.Value[growth.Scene];
-        roomLabel.Text = $"{growth.SceneName} · DAY {growth.Days:000}";
+        room.Source = (settings.ClockTrace ? TraceScenes : HackerScenes).Value[growth.Scene];
+        roomLabel.Text = $"{(settings.ClockTrace ? growth.TraceName : growth.SceneName)} · DAY {growth.Days:000}";
         AutomationProperties.SetName(room, "ねむまる・ハッカー版 / " + roomLabel.Text);
         int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
         remaining.Text = rest.Running ? $"残り {seconds / 60:00}:{seconds % 60:00}" : rest.Finished ? "休憩完了" : "休憩タイマー";
@@ -76,6 +90,6 @@ public sealed partial class ConsoleWindow
         startRest.ToolTip = rest.PendingSave ? "完了した休憩の日付を保存し直す" : "選んだ分数で無音タイマーを開始";
         AutomationProperties.SetName(startRest, rest.PendingSave ? "再保存" : "START");
         resetRest.IsEnabled = !rest.PendingSave && (rest.Running || rest.Finished);
-        window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
+        window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : settings.ClockTrace ? "TRACE  /  休憩日数で育つ通信図   ·   無音タイマー" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
     }
 }

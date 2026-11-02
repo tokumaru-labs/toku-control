@@ -7,6 +7,7 @@ namespace TokuControl;
 internal sealed record HackerGrowth(int Days = 0, DateOnly? LastDay = null, DateOnly[]? EarnedDates = null, DateOnly? LegacyThrough = null)
 {
     [JsonIgnore] public int Scene => Days switch { 0 => 0, < 7 => 1, < 30 => 2, _ => 3 };
+    [JsonIgnore] public string TraceName => Scene switch { 0 => "起動局", 1 => "信号同期", 2 => "経路追跡", _ => "管制網" };
     [JsonIgnore] public string SceneName => Scene switch { 0 => "作業机", 1 => "信号受信", 2 => "解析ラック", _ => "秘密基地" };
 }
 
