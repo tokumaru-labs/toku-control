@@ -21,7 +21,8 @@ public sealed partial class ConsoleWindow
             frame.Freeze(); return (BitmapSource)frame;
         }).ToArray();
     }
-    TraceRain traceRain = null!;
+    TraceConsole traceConsole = null!;
+    bool clockCancelled;
     Button traceMotion = null!;
     ComboBox clockTheme = null!;
     MinuteWheel minuteWheel = null!;
@@ -50,8 +51,13 @@ public sealed partial class ConsoleWindow
             Save();
             RenderRest(window);
         };
-        traceRain = new TraceRain(window);
-        traceMotion = Retro.Button("Ⅱ", "コードの流れを一時停止", () =>
+        var signal = new System.Windows.Shapes.Polygon {
+            Points = new PointCollection { new(160, 112), new(177, 129), new(160, 146), new(143, 129) },
+            Stroke = Retro.Cyan, StrokeThickness = 5, Opacity = 0
+        };
+        var topology = new Canvas { Width = 320, Height = 320 }; topology.Children.Add(signal);
+        traceConsole = new TraceConsole(window, opacity => signal.Opacity = opacity);
+        traceMotion = Retro.Button("Ⅱ", "端末のタイプ演出を停止", () =>
         {
             settings.ClockCodeMotion = !settings.ClockCodeMotion;
             Save();
@@ -63,22 +69,22 @@ public sealed partial class ConsoleWindow
         DockPanel.SetDock(traceMotion, Dock.Right); themeRow.Children.Add(traceMotion); themeRow.Children.Add(clockTheme);
         DockPanel.SetDock(themeRow, Dock.Top); art.Children.Add(themeRow);
         DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel);
-        var scene = new Grid(); scene.Children.Add(room); scene.Children.Add(traceRain);
+        var scene = new Grid(); scene.Children.Add(room); scene.Children.Add(new Viewbox { Child = topology, IsHitTestVisible = false });
         art.Children.Add(scene); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(controls, 1); body.Children.Add(controls);
         clock = new SegmentClock { Height = 44, Margin = new Thickness(2, 0, 2, 0) }; controls.Children.Add(clock);
-        clockDate = Retro.Label("", Retro.Text, 10); clockDate.HorizontalAlignment = HorizontalAlignment.Center; controls.Children.Add(clockDate);
+        clockDate = Retro.Label("", Retro.Text, 10); clockDate.HorizontalAlignment = HorizontalAlignment.Center; controls.Children.Add(clockDate); controls.Children.Add(traceConsole);
         minuteWheel = new MinuteWheel { Value = selectedMinutes };
         minuteWheel.ValueChanged += (_, _) => selectedMinutes = (int)minuteWheel.Value;
         startRest = Retro.Button("START", "選んだ分数で無音タイマーを開始", () =>
         {
             if (rest.PendingSave) rest.RetrySave();
-            else if (rest.Start(selectedMinutes)) Log("INFO", $"silent timer set / {selectedMinutes} min");
+            else if (rest.Start(selectedMinutes)) { clockCancelled = false; Log("INFO", $"silent timer set / {selectedMinutes} min"); }
             RenderRest(window);
         });
-        resetRest = Retro.Button("RESET", "タイマーを中断して待機に戻る", () => { rest.Reset(); RenderRest(window); });
+        resetRest = Retro.Button("RESET", "タイマーを中断して待機に戻る", () => { clockCancelled = rest.Running && rest.Remaining > TimeSpan.Zero; rest.Reset(); RenderRest(window); });
         var pin = Retro.Button("PIN", "時計の最前面固定を切り替える", () => { window.Topmost = !window.Topmost; SavePositions(); });
         var actions = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         remaining = Retro.Label("", Retro.Green, 12); actions.Children.Add(remaining);
@@ -96,14 +102,19 @@ public sealed partial class ConsoleWindow
         room.Source = (settings.ClockTrace ? TraceScenes : HackerScenes).Value[growth.Scene];
         roomLabel.Text = $"{(settings.ClockTrace ? growth.TraceName : growth.SceneName)} · DAY {growth.Days:000}";
         AutomationProperties.SetName(room, "ねむまる・ハッカー版 / " + roomLabel.Text);
-        traceRain.Configure(settings.ClockTrace, settings.ClockCodeMotion);
+        clockDate!.Visibility = settings.ClockTrace ? Visibility.Collapsed : Visibility.Visible;
+        int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
+        string command = rest.Running ? $"rest.start {rest.Minutes}m" :
+            rest.Finished ? "rest.result" : clockCancelled ? "rest.cancel" : "trace.status";
+        string status = rest.Running ? $"LEFT {seconds / 60:00}:{seconds % 60:00}" : rest.PendingSave ? "SAVE PENDING" :
+            rest.Finished ? "COMPLETE" : clockCancelled ? "CANCELLED" : "READY";
+        traceConsole.Display(settings.ClockTrace, settings.ClockCodeMotion, command, $"{status}  /  NODE {growth.Scene + 1:00}");
         traceMotion.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
         traceMotion.IsEnabled = SystemParameters.ClientAreaAnimation;
         traceMotion.Content = settings.ClockCodeMotion && traceMotion.IsEnabled ? "Ⅱ" : "▶";
         string motionHint = !traceMotion.IsEnabled ? "Windowsの設定で動きを停止中" :
-            settings.ClockCodeMotion ? "コードの流れを一時停止" : "コードの流れを再開";
+            settings.ClockCodeMotion ? "端末のタイプ演出を停止" : "端末のタイプ演出を再開";
         traceMotion.ToolTip = motionHint; AutomationProperties.SetName(traceMotion, motionHint);
-        int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
         remaining.Text = rest.Running ? $"残り {seconds / 60:00}:{seconds % 60:00}" : rest.Finished ? "休憩完了" : "休憩タイマー";
         timerBar.Value = rest.Running ? 1 - rest.Remaining.TotalMinutes / rest.Minutes : rest.Finished ? 1 : 0;
         minuteWheel.IsEnabled = !rest.Running && !rest.PendingSave;

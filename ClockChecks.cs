@@ -48,33 +48,23 @@ public sealed partial class ConsoleWindow
             clockTheme.SelectedIndex = 1;
             checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
                 minuteWheel.Value == 5 && journal.Read().Days == 0 && room.Source == TraceScenes.Value[0] && store.Load().ClockTrace;
-            checks["code rain follows Windows motion setting"] = traceRain.IsVisible && traceRain.Flowing == SystemParameters.ClientAreaAnimation;
             w.UpdateLayout();
-            checks["rain overlay fills the visible artwork"] = traceRain.ActualWidth > 90 && traceRain.ActualHeight > 90;
-            byte[] RainPixels()
-            {
-                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(traceRain.ActualWidth),
-                    (int)Math.Ceiling(traceRain.ActualHeight), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-                bitmap.Render(traceRain);
-                var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
-                bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
-                return pixels;
-            }
-            var flowingFrame = RainPixels(); await Task.Delay(460);
-            checks["glyphs are drawn and move in the visible artwork"] = flowingFrame.Any(b => b != 0) &&
-                (!SystemParameters.ClientAreaAnimation || !flowingFrame.SequenceEqual(RainPixels()));
+            checks["TRACE console fits the clock"] = traceConsole.IsVisible && traceConsole.ActualWidth > 170 &&
+                traceConsole.ActualHeight >= 25 && traceConsole.TransformToAncestor(w).Transform(new Point()).Y >= 0;
+            var first = traceConsole.Prompt;
+            await Task.Delay(400);
+            checks["command types horizontally"] = !SystemParameters.ClientAreaAnimation ||
+                traceConsole.Prompt.StartsWith("toku> rest") && traceConsole.Prompt != first;
             Click(traceMotion);
-            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
-            var pausedFrame = RainPixels(); await Task.Delay(325);
-            checks["paused glyph positions stay still"] = pausedFrame.SequenceEqual(RainPixels());
-            checks["pause stops drawing and preserves timer"] = !traceRain.Flowing && !store.Load().ClockCodeMotion && remaining.Text.Contains("03:00");
+            checks["motion off reveals the full command and actual timer"] = !traceConsole.Animating &&
+                traceConsole.Prompt == "toku> rest.start 5m" && traceConsole.Reply.Contains("LEFT 03:00") &&
+                !store.Load().ClockCodeMotion && remaining.Text.Contains("03:00");
             Click(traceMotion);
             w.Hide();
-            checks["hidden clock stops rain"] = !traceRain.Flowing;
+            checks["hidden clock stops typing"] = !traceConsole.Animating;
             w.Show(); w.UpdateLayout();
-            checks["visible clock resumes requested motion"] = traceRain.Flowing == SystemParameters.ClientAreaAnimation;
             clockTheme.SelectedIndex = 0;
-            checks["room has no rain or motion control"] = !traceRain.IsVisible && !traceRain.Flowing && !traceMotion.IsVisible;
+            checks["room has no console or motion control"] = !traceConsole.IsVisible && !traceConsole.Animating && !traceMotion.IsVisible;
             checks["room can be restored while running"] = rest.Running && room.Source == HackerScenes.Value[0] && !store.Load().ClockTrace;
             Capture(w, Path.Combine(directory, "clock-running.png"));
             Click(resetRest); checks["reset gives no growth"] = !rest.Running && rest.Growth.Days == 0 && journal.Read().Days == 0;
@@ -86,6 +76,9 @@ public sealed partial class ConsoleWindow
             clockTheme.SelectedIndex = 1; w.UpdateLayout();
             checks["TRACE shares the earned day"] = rest.Growth.Days == 1 && journal.Read().Days == 1 &&
                 room.Source == TraceScenes.Value[1] && TraceScenes.Value.Distinct().Count() == 4 && roomLabel.Text.Contains("信号同期 · DAY 001");
+            await Task.Delay(1900);
+            checks["finished timer returns the earned node and then rests"] = traceConsole.Prompt == "toku> rest.result" &&
+                traceConsole.Reply.Contains("COMPLETE  /  NODE 02") && !traceConsole.Animating;
             Capture(w, Path.Combine(directory, "clock-trace.png"));
             // Cross midnight during this second timer. Closing only the clock must not cancel it.
             Click(startRest); w.Close(); time.Add(TimeSpan.FromMinutes(5)); Tick(); ShowModule("clock", false);
