@@ -43,7 +43,12 @@ public sealed partial class ConsoleWindow
             void KeyPress(Key key) => minuteWheel.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(minuteWheel), 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
             KeyPress(System.Windows.Input.Key.Down); bool keyTen = minuteWheel.Value == 10; KeyPress(System.Windows.Input.Key.Home);
             checks["keyboard selects without starting"] = keyTen && minuteWheel.Value == 5 && !rest.Running;
-            Click(startRest); time.Add(TimeSpan.FromMinutes(2)); Tick();
+            clockTheme.SelectedIndex = 1; w.UpdateLayout();
+            Click(startRest); var initialPrompt = traceConsole.Prompt;
+            await Task.Delay(420);
+            checks["first start types once"] = !SystemParameters.ClientAreaAnimation ||
+                traceConsole.Prompt.StartsWith("toku> rest") && traceConsole.Prompt != initialPrompt;
+            clockTheme.SelectedIndex = 0; time.Add(TimeSpan.FromMinutes(2)); Tick();
             checks["remaining time, visual bar and running controls"] = remaining.Text.Contains("03:00") && Math.Abs(timerBar.Value - .4) < .001 && !minuteWheel.IsEnabled && !startRest.IsEnabled;
             clockTheme.SelectedIndex = 1;
             checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
@@ -51,10 +56,7 @@ public sealed partial class ConsoleWindow
             w.UpdateLayout();
             checks["TRACE console fits the clock"] = traceConsole.IsVisible && traceConsole.ActualWidth > 170 &&
                 traceConsole.ActualHeight >= 25 && traceConsole.TransformToAncestor(w).Transform(new Point()).Y >= 0;
-            var first = traceConsole.Prompt;
-            await Task.Delay(400);
-            checks["command types horizontally"] = !SystemParameters.ClientAreaAnimation ||
-                traceConsole.Prompt.StartsWith("toku> rest") && traceConsole.Prompt != first;
+            checks["returning to TRACE does not replay an old start"] = !traceConsole.Animating && traceConsole.Prompt == "toku> rest.start 5m";
             Click(traceMotion);
             checks["motion off reveals the full command and actual timer"] = !traceConsole.Animating &&
                 traceConsole.Prompt == "toku> rest.start 5m" && traceConsole.Reply.Contains("LEFT 03:00") &&
@@ -84,6 +86,18 @@ public sealed partial class ConsoleWindow
             await Task.Delay(1900);
             checks["a rapid start and cancel replaces the unfinished command"] = traceConsole.Prompt == "toku> rest.cancel" &&
                 traceConsole.Reply.Contains("CANCELLED") && !traceConsole.Animating && journal.Read().Days == 1;
+            Click(detailToggle); w.UpdateLayout();
+            var runs = rest.History.Runs;
+            checks["real runs produce a stable detail graph and transcript"] = traceDetails.IsVisible && !clockOverview.IsVisible &&
+                runs.Select(r => (r.Target, r.Elapsed, r.State)).SequenceEqual(new[]{ (300,120,"CUT"), (300,300,"DONE"), (300,0,"CUT") });
+            Capture(w, Path.Combine(directory, "clock-detail.png"));
+            int revision = rest.History.Revision; Tick(); Tick();
+            checks["idle ticks do not add history"] = revision == rest.History.Revision;
+            Click(detailToggle); w.UpdateLayout();
+            checks["return from detail restores controls"] = startRest.IsVisible && !traceDetails.IsVisible;
+            var boundedHistory = new TraceHistory();
+            for (int i = 0; i < 9; i++) { boundedHistory.Start(300); boundedHistory.Finish(i, false); }
+            checks["history retains the last six attempts"] = boundedHistory.Runs.Select(r=>r.Number).SequenceEqual(Enumerable.Range(4,6));
             // Cross midnight during this second timer. Closing only the clock must not cancel it.
             Click(startRest); w.Close(); time.Add(TimeSpan.FromMinutes(5)); Tick(); ShowModule("clock", false);
             checks["reopened clock retains TRACE"] = clockTheme.SelectedIndex == 1 && room.Source == TraceScenes.Value[1] && store.Load().ClockTrace;

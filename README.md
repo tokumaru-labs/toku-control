@@ -39,7 +39,7 @@ you trust; release assets include a SHA-256 checksum file.
 | Event log | Operation results, with explicit export using `SAVE`. |
 | Updates | Startup checks for new stable versions; `+ updates` opens manual checking and the startup-check preference. `YES / UPDATE` downloads, verifies, updates and restarts. |
 
-In the Clock Module, use the selector above the artwork to switch between **部屋** (room) and **TRACE 端末** (terminal). The terminal diagram grows with your completed rest days at 0, 1, 7 and 30 days. Switching keeps the running timer and the earned days. The local console types a command on start, cancel and completion, then shows the actual timer or result. The node briefly lights up with the reply. Disable typing with the adjacent button or Windows animation preferences for an immediate readout.
+In the Clock Module, use the selector above the artwork to switch between **部屋** (room) and **TRACE 端末** (terminal). The terminal diagram grows with your completed rest days at 0, 1, 7 and 30 days. Switching keeps the running timer and the earned days. Open **DETAIL** to compare the last six timer attempts in this app session: time used versus time planned, outcome, and matching numbered console entries. Use **← CLOCK** to return. Only the first start can type out. Reopening, cancellation and completion show immediate results.
 
 Individual clock, audio meter and CRT buttons toggle their windows. A filled dot
 means visible. Reopening restores the module's position and pin. Click `+ modules`

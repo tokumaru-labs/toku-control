@@ -23,6 +23,10 @@ public sealed partial class ConsoleWindow
     }
     TraceConsole traceConsole = null!;
     bool clockCancelled;
+    Grid clockOverview = null!;
+    TraceDetails traceDetails = null!;
+    Button detailToggle = null!;
+    bool inspectingTrace;
     Button traceMotion = null!;
     ComboBox clockTheme = null!;
     MinuteWheel minuteWheel = null!;
@@ -51,12 +55,7 @@ public sealed partial class ConsoleWindow
             Save();
             RenderRest(window);
         };
-        var signal = new System.Windows.Shapes.Polygon {
-            Points = new PointCollection { new(160, 112), new(177, 129), new(160, 146), new(143, 129) },
-            Stroke = Retro.Cyan, StrokeThickness = 5, Opacity = 0
-        };
-        var topology = new Canvas { Width = 320, Height = 320 }; topology.Children.Add(signal);
-        traceConsole = new TraceConsole(window, opacity => signal.Opacity = opacity);
+        traceConsole = new TraceConsole(window);
         traceMotion = Retro.Button("Ⅱ", "端末のタイプ演出を停止", () =>
         {
             settings.ClockCodeMotion = !settings.ClockCodeMotion;
@@ -69,7 +68,7 @@ public sealed partial class ConsoleWindow
         DockPanel.SetDock(traceMotion, Dock.Right); themeRow.Children.Add(traceMotion); themeRow.Children.Add(clockTheme);
         DockPanel.SetDock(themeRow, Dock.Top); art.Children.Add(themeRow);
         DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel);
-        var scene = new Grid(); scene.Children.Add(room); scene.Children.Add(new Viewbox { Child = topology, IsHitTestVisible = false });
+        var scene = new Grid(); scene.Children.Add(room);
         art.Children.Add(scene); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -92,7 +91,18 @@ public sealed partial class ConsoleWindow
         var row = Retro.Row(minuteWheel, actions); row.HorizontalAlignment = HorizontalAlignment.Center; controls.Children.Add(row);
         timerBar = new ProgressBar { Minimum = 0, Maximum = 1, Height = 5, Foreground = Retro.Green, Background = Retro.Panel, Margin = new Thickness(4, 2, 4, 1) };
         AutomationProperties.SetName(timerBar, "休憩の進捗"); controls.Children.Add(timerBar);
-        window.Layout.Children.Add(body);
+        clockOverview = body; traceDetails = new TraceDetails();
+        var pages = new Grid(); pages.Children.Add(body); pages.Children.Add(traceDetails);
+        window.Layout.Children.Add(pages);
+        detailToggle = Retro.Button("DETAIL", "休憩の実測グラフと操作履歴を表示", () => {
+            inspectingTrace = !inspectingTrace; RenderRest(window);
+        });
+        detailToggle.MinHeight = 18; detailToggle.Padding = new Thickness(6, 0, 6, 0);
+        detailToggle.Margin = new Thickness(0, 0, 2, 0);
+        var footerBox = (Border)window.Footer.Parent;
+        footerBox.Child = null;
+        var footerRow = new DockPanel(); DockPanel.SetDock(detailToggle, Dock.Right);
+        footerRow.Children.Add(detailToggle); footerRow.Children.Add(window.Footer); footerBox.Child = footerRow;
         RenderRest(window);
         return window;
     }
@@ -108,7 +118,14 @@ public sealed partial class ConsoleWindow
             rest.Finished ? "rest.result" : clockCancelled ? "rest.cancel" : "trace.status";
         string status = rest.Running ? $"LEFT {seconds / 60:00}:{seconds % 60:00}" : rest.PendingSave ? "SAVE PENDING" :
             rest.Finished ? "COMPLETE" : clockCancelled ? "CANCELLED" : "READY";
-        traceConsole.Display(settings.ClockTrace, settings.ClockCodeMotion, command, $"{status}  /  NODE {growth.Scene + 1:00}");
+        if (!settings.ClockTrace) inspectingTrace = false;
+        detailToggle.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
+        detailToggle.Content = inspectingTrace ? "← CLOCK" : "DETAIL";
+        clockOverview.Visibility = inspectingTrace ? Visibility.Collapsed : Visibility.Visible;
+        traceDetails.Visibility = inspectingTrace ? Visibility.Visible : Visibility.Collapsed;
+        if (inspectingTrace) traceDetails.Refresh(rest);
+        bool firstStart = rest.Running && rest.History.Runs.LastOrDefault()?.Number == 1 && rest.ElapsedSeconds == 0;
+        traceConsole.Display(settings.ClockTrace, settings.ClockCodeMotion && firstStart, command, $"{status}  /  NODE {growth.Scene + 1:00}");
         traceMotion.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
         traceMotion.IsEnabled = SystemParameters.ClientAreaAnimation;
         traceMotion.Content = settings.ClockCodeMotion && traceMotion.IsEnabled ? "Ⅱ" : "▶";

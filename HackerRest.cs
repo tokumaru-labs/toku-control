@@ -61,6 +61,8 @@ internal sealed class HackerRest(HackerJournal journal, TimeProvider time)
 {
     long? started;
     DateOnly finishDay;
+    public TraceHistory History { get; } = new();
+    public int ElapsedSeconds => Math.Clamp(Minutes * 60 - (int)Math.Ceiling(Remaining.TotalSeconds), 0, Minutes * 60);
     public int Minutes { get; private set; } = 25;
     public bool Running => started.HasValue;
     public bool Finished { get; private set; }
@@ -83,18 +85,21 @@ internal sealed class HackerRest(HackerJournal journal, TimeProvider time)
         var end = TimeZoneInfo.ConvertTime(time.GetUtcNow().AddMinutes(minutes), time.LocalTimeZone);
         finishDay = DateOnly.FromDateTime(end.DateTime);
         Finished = false;
+        History.Start(minutes * 60);
         return true;
     }
     public void Reset()
     {
         Advance();
         if (PendingSave) return;
+        if (Running) History.Finish(ElapsedSeconds, false);
         started = null;
         Finished = false;
     }
     public void Advance()
     {
         if (!Running || Remaining > TimeSpan.Zero) return;
+        History.Finish(Minutes * 60, true);
         started = null;
         Finished = true;
         PendingSave = true;
