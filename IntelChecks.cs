@@ -88,12 +88,14 @@ public sealed partial class ConsoleWindow
                 finally { fixture.Oversize = false; }
                 checks["links are HTTPS only"] = new[] { "file:///C:/x", "javascript:x", "http://example.org", "https://a@b.com", "https://localhost/x", @"\\server\file" }.All(s => IntelFeeds.WebLink(s) == null);
             }
-            for (int i = 0; i < 6; i++) w.Advance();
-            checks["stream includes all checked sources"] = w.Shown.Select(a => a.Source).Distinct().Count() == 3;
+            var firstKey = w.Shown.FirstOrDefault()?.Key; var deadline = System.Diagnostics.Stopwatch.StartNew();
+            while (deadline.Elapsed < TimeSpan.FromSeconds(9) && (w.Shown.FirstOrDefault()?.Key == firstKey || w.Shown.Select(a => a.Source).Distinct().Count() < 3))
+                await Task.Delay(100); // Pump the WPF dispatcher. Only the real playback timer can advance this stream.
+            checks["WPF playback timer advances through all checked sources"] = firstKey != null && w.Shown.FirstOrDefault()?.Key != firstKey && w.Shown.Select(a => a.Source).Distinct().Count() == 3;
             var row = w.FirstArticleButton; row?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var selected = w.SelectedArticle;
-            int pausedCount = w.Shown.Count; w.Advance();
-            checks["row pauses with article details"] = selected != null && w.Paused && pausedCount == w.Shown.Count && w.Original.IsEnabled == live;
+            int pausedCount = w.Shown.Count; await Task.Delay(1850);
+            checks["row keeps the next WPF tick paused with article details"] = selected != null && w.Paused && pausedCount == w.Shown.Count && w.Shown.First().Key == selected.Key && w.Original.IsEnabled == live;
             if (selected != null && !w.Library.Saved.Any(a => a.Key == selected.Key)) w.Bookmark.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["bookmark persists"] = selected != null && w.Library.Saved.Any(a => a.Key == selected.Key);
             w.UpdateLayout(); Capture(w, Path.Combine(directory, "intel-stream.png"));
@@ -108,6 +110,18 @@ public sealed partial class ConsoleWindow
                 reopened.FirstArticleButton != null && reopened.Library.Saved.Any(a => a.Key == selected?.Key) && fixture.Calls.Count == sent;
             if (!live)
             {
+                var sameDirectory = Path.Combine(store.DirectoryPath, "two-readers-" + Guid.NewGuid().ToString("N"));
+                var left = new IntelLibrary(sameDirectory); var right = new IntelLibrary(sameDirectory); left.Load(); right.Load();
+                var one = new IntelArticle(IntelSource.JpCert, "one", "https://example.org/a", null);
+                var two = new IntelArticle(IntelSource.HackerNews, "two", "https://example.org/b", null);
+                left.Store(one.Source, new([one])); left.ToggleSaved(one); right.Store(two.Source, new([two])); right.ToggleSaved(two);
+                var reopenedLibrary = new IntelLibrary(sameDirectory); reopenedLibrary.Load();
+                checks["stale second window preserves other source and bookmark"] = reopenedLibrary.Feeds.Count == 2 && reopenedLibrary.Saved.Count == 2;
+                left.ToggleSaved(one); var afterRemove = new IntelLibrary(sameDirectory); afterRemove.Load();
+                checks["remove only intended bookmark across windows"] = afterRemove.Saved.Count == 1 && afterRemove.Saved[0].Key == two.Key;
+                await Task.WhenAll(Task.Run(() => left.ToggleSaved(one)), Task.Run(() => right.Store(two.Source, new([two]))));
+                afterRemove.Load();
+                checks["overlapping writers retain both updates"] = left.Warning == null && right.Warning == null && afterRemove.Feeds.Count == 2 && afterRemove.Saved.Count == 2;
                 fixture.Fail = true; reopened.Choices[IntelSource.JpCert].IsChecked = true; reopened.Online.IsChecked = true; await reopened.WhenIdle();
                 checks["failure retains old cache and identifies it"] = reopened.SourceStatus(IntelSource.JpCert).Contains("取得失敗") &&
                     reopened.SourceStatus(IntelSource.JpCert).Contains("前回") && reopened.Library.Feeds[IntelSource.JpCert].Fetched == jp?.Fetched;
