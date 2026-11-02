@@ -49,6 +49,8 @@ public sealed partial class ConsoleWindow
             checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
                 minuteWheel.Value == 5 && journal.Read().Days == 0 && room.Source == TraceScenes.Value[0] && store.Load().ClockTrace;
             checks["code rain follows Windows motion setting"] = traceRain.IsVisible && traceRain.Flowing == SystemParameters.ClientAreaAnimation;
+            w.UpdateLayout();
+            checks["rain overlay fills the visible artwork"] = traceRain.ActualWidth > 90 && traceRain.ActualHeight > 90;
             byte[] RainPixels()
             {
                 var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(traceRain.ActualWidth),
