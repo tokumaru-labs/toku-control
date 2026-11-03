@@ -128,9 +128,13 @@ public sealed partial class ConsoleWindow : RetroWindow
         audio = preview ? new PreviewAudio((PreviewOutputRoutes)routes) : new CoreAudio();
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         var headerGrid = new Grid { Margin = new Thickness(9, 5, 9, 6) };
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition()); headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition()); headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
         var head = Retro.Col(Retro.Label("HOST: [ LOCAL ]   SCOPE: THIS PC   MODE: STANDBY", Retro.Text, 11), Retro.Label("OS: WINDOWS    PORT: -- / NOT USED    SESSION: 1", Retro.Dim, 11));
-        headerGrid.Children.Add(head); Grid.SetColumn(topTime, 1); headerGrid.Children.Add(topTime);
+        headerGrid.Children.Add(head);
+        var guide = QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Radar);
+        Grid.SetColumn(guide, 1); headerGrid.Children.Add(guide);
+        Grid.SetColumn(topTime, 2); headerGrid.Children.Add(topTime);
         DockPanel.SetDock(headerGrid, Dock.Top); Layout.Children.Add(headerGrid);
         if (preview)
         {
