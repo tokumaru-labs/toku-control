@@ -104,6 +104,11 @@ public sealed partial class ConsoleWindow
         try
         {
             SelectSection("security"); var first = radarWindow!; SelectSection("security");
+            ShowModule("clock", false); clockTheme.SelectedIndex = 1;
+            checks["clock displays unmeasured radar without collecting"] = clockRadar!.Buttons.All(b => b.Content.ToString()!.Contains("未取得")) && radarSession!.Current.Count == 0;
+            clockRadar.Buttons[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["clock opens TCP evidence without scanning"] = first.DetailText.Contains("TCP connections") && first.DetailText.Contains("次の確認") && radarSession!.Current.Count == 0;
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["singleton"] = ReferenceEquals(first, radarWindow);
             checks["no scan on opening"] = radarSession!.Current.Count == 0;
             checks["radar visible and contained"] = first.IsVisible && first.ShowInTaskbar && WindowPlacement.WorkArea(first).Contains(WindowPlacement.NativeBounds(first));
@@ -113,12 +118,27 @@ public sealed partial class ConsoleWindow
             await first.RefreshAsync(); first.UpdateLayout();
             checks["nine demo sources"] = first.Session.Current.Count == 9 && first.CardCount == 7;
             checks["refresh keeps map visible"] = first.MapVisible && first.MapButtons.Count == 7;
+            checks["reference pending on clock"] = clockRadar!.Buttons[1].Content.ToString()!.Contains("未比較");
             checks["baseline button works"] = first.ReferenceButton.IsEnabled;
             first.ReferenceButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["reference notifies clock"] = clockRadar!.Buttons[1].Content.ToString()!.Contains("観測済");
+            clockRadar.Buttons[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["network guidance opens actual sampled peer"] = first.DetailText.Contains("203.0.113.20") && first.DetailText.Contains("PID") && first.DetailText.Contains("次の確認");
+            Capture(modules["clock"], Path.Combine(directory, "clock-radar-demo.png"));
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["explicit reference set"] = first.Session.Reference.Count == 4;
             first.MapButtons[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["map opens evidence"] = first.DetailText.Contains("T1547.001") && first.DetailText.Contains("DEMO");
             Capture(first, Path.Combine(directory, "radar-detail.png"));
+            var mixed = new RadarSession(new SecurityRadarChecks.Probe { Read = (source, _) => Task.FromResult(
+                source == RadarSource.Defender ? new RadarRead(source, RadarCoverage.Complete, DateTimeOffset.Now, "fixture", [new("RealTimeProtectionEnabled", "RealTimeProtectionEnabled", "False")]) :
+                new RadarRead(source, RadarCoverage.Unavailable, DateTimeOffset.Now, "fixture: access denied", [])) });
+            RadarSource opened = RadarSource.Udp;
+            var monitor = new RadarSnapshotPanel(false, source => opened = source); monitor.Bind(mixed);
+            await mixed.RefreshAsync(default); monitor.Buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["partial group preserves known warning and unknown sibling"] = monitor.Buttons[0].Content.ToString()!.Contains("要確認+未確認") &&
+                monitor.Buttons[2].Content.ToString()!.Contains("未確認") && opened == RadarSource.Defender;
+            monitor.Bind(null);
             bool allNodes = true;
             for (int i = 0; i < RadarKnowledge.Techniques.Length; i++)
             {

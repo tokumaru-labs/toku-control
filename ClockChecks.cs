@@ -52,7 +52,7 @@ public sealed partial class ConsoleWindow
             checks["remaining time, visual bar and running controls"] = remaining.Text.Contains("03:00") && Math.Abs(timerBar.Value - .4) < .001 && !minuteWheel.IsEnabled && !startRest.IsEnabled;
             clockTheme.SelectedIndex = 1;
             checks["TRACE selection preserves the running timer and growth"] = rest.Running && remaining.Text.Contains("03:00") &&
-                minuteWheel.Value == 5 && journal.Read().Days == 0 && room.Source == TraceScenes.Value[0] && store.Load().ClockTrace;
+                minuteWheel.Value == 5 && journal.Read().Days == 0 && clockRadar!.IsVisible && !room.IsVisible && store.Load().ClockTrace;
             w.UpdateLayout();
             checks["TRACE console fits the clock"] = traceConsole.IsVisible && traceConsole.ActualWidth > 170 &&
                 traceConsole.ActualHeight >= 25 && traceConsole.TransformToAncestor(w).Transform(new Point()).Y >= 0;
@@ -77,10 +77,10 @@ public sealed partial class ConsoleWindow
             Capture(w, Path.Combine(directory, "clock-room.png"));
             clockTheme.SelectedIndex = 1; w.UpdateLayout();
             checks["TRACE shares the earned day"] = rest.Growth.Days == 1 && journal.Read().Days == 1 &&
-                room.Source == TraceScenes.Value[1] && TraceScenes.Value.Distinct().Count() == 4 && roomLabel.Text.Contains("信号同期 · DAY 001");
+                clockRadar!.IsVisible && !room.IsVisible && roomLabel.Text.Contains("STAGE 2/4 · 1日");
             await Task.Delay(1900);
             checks["finished timer returns the earned node and then rests"] = traceConsole.Prompt == "toku> rest.result" &&
-                traceConsole.Reply.Contains("COMPLETE  /  NODE 02") && !traceConsole.Animating;
+                traceConsole.Reply.Contains("COMPLETE  /  STAGE 02") && !traceConsole.Animating;
             Capture(w, Path.Combine(directory, "clock-trace.png"));
             Click(startRest); Click(resetRest);
             await Task.Delay(1900);
@@ -100,7 +100,7 @@ public sealed partial class ConsoleWindow
             checks["history retains the last six attempts"] = boundedHistory.Runs.Select(r=>r.Number).SequenceEqual(Enumerable.Range(4,6));
             // Cross midnight during this second timer. Closing only the clock must not cancel it.
             Click(startRest); w.Close(); time.Add(TimeSpan.FromMinutes(5)); Tick(); ShowModule("clock", false);
-            checks["reopened clock retains TRACE"] = clockTheme.SelectedIndex == 1 && room.Source == TraceScenes.Value[1] && store.Load().ClockTrace;
+            checks["reopened clock retains TRACE"] = clockTheme.SelectedIndex == 1 && clockRadar!.IsVisible && !room.IsVisible && store.Load().ClockTrace;
             checks["closed module continues; date is the scheduled finish day"] = rest.Growth.Days == 2 && journal.Read().LastDay == new DateOnly(2026, 1, 3) && !rest.Running;
             Click(startRest); time.Add(TimeSpan.FromMinutes(5)); Tick();
             checks["two sessions on same local day count once"] = rest.Growth.Days == 2;

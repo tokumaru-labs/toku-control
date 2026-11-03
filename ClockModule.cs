@@ -9,7 +9,7 @@ namespace TokuControl;
 public sealed partial class ConsoleWindow
 {
     static readonly Lazy<BitmapSource[]> HackerScenes = new(() => LoadScenes("NemumaruHacker.png"));
-    static readonly Lazy<BitmapSource[]> TraceScenes = new(() => LoadScenes("TokuTrace.png"));
+    RadarSnapshotPanel? clockRadar;
     static BitmapSource[] LoadScenes(string filename)
     {
         var atlas = new BitmapImage(new Uri($"pack://application:,,,/TokuControl;component/Assets/{filename}"));
@@ -69,6 +69,13 @@ public sealed partial class ConsoleWindow
         DockPanel.SetDock(themeRow, Dock.Top); art.Children.Add(themeRow);
         DockPanel.SetDock(roomLabel, Dock.Bottom); art.Children.Add(roomLabel);
         var scene = new Grid(); scene.Children.Add(room);
+        var snapshot = new RadarSnapshotPanel(preview, source => {
+            ShowSecurityRadar();
+            radarWindow!.ShowSource(source);
+        });
+        clockRadar = snapshot; snapshot.Bind(radarSession);
+        window.Closed += (_, _) => { snapshot.Bind(null); if (clockRadar == snapshot) clockRadar = null; };
+        scene.Children.Add(snapshot);
         art.Children.Add(scene); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -109,8 +116,10 @@ public sealed partial class ConsoleWindow
     void RenderRest(RetroWindow window)
     {
         var growth = rest.Growth;
-        room.Source = (settings.ClockTrace ? TraceScenes : HackerScenes).Value[growth.Scene];
-        roomLabel.Text = $"{(settings.ClockTrace ? growth.TraceName : growth.SceneName)} · DAY {growth.Days:000}";
+        room.Source = HackerScenes.Value[growth.Scene];
+        room.Visibility = settings.ClockTrace ? Visibility.Collapsed : Visibility.Visible;
+        clockRadar!.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
+        roomLabel.Text = settings.ClockTrace ? $"STAGE {growth.Scene + 1}/4 · {growth.Days}日" : $"{growth.SceneName} · DAY {growth.Days:000}";
         AutomationProperties.SetName(room, "ねむまる・ハッカー版 / " + roomLabel.Text);
         clockDate!.Visibility = settings.ClockTrace ? Visibility.Collapsed : Visibility.Visible;
         int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
@@ -121,11 +130,13 @@ public sealed partial class ConsoleWindow
         if (!settings.ClockTrace) inspectingTrace = false;
         detailToggle.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
         detailToggle.Content = inspectingTrace ? "← CLOCK" : "DETAIL";
+        string detailHint = inspectingTrace ? "時計へ戻る" : "休憩の実測グラフと操作履歴を表示";
+        detailToggle.ToolTip = detailHint; AutomationProperties.SetName(detailToggle, detailHint);
         clockOverview.Visibility = inspectingTrace ? Visibility.Collapsed : Visibility.Visible;
         traceDetails.Visibility = inspectingTrace ? Visibility.Visible : Visibility.Collapsed;
         if (inspectingTrace) traceDetails.Refresh(rest);
         bool firstStart = rest.Running && rest.History.Runs.LastOrDefault()?.Number == 1 && rest.ElapsedSeconds == 0;
-        traceConsole.Display(settings.ClockTrace, settings.ClockCodeMotion && firstStart, command, $"{status}  /  NODE {growth.Scene + 1:00}");
+        traceConsole.Display(settings.ClockTrace, settings.ClockCodeMotion && firstStart, command, $"{status}  /  STAGE {growth.Scene + 1:00}");
         traceMotion.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
         traceMotion.IsEnabled = SystemParameters.ClientAreaAnimation;
         traceMotion.Content = settings.ClockCodeMotion && traceMotion.IsEnabled ? "Ⅱ" : "▶";

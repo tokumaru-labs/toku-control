@@ -34,6 +34,21 @@ internal static class RadarKnowledge
         RadarSource.Services => "Services", RadarSource.ScheduledTasks => "Scheduled tasks",
         RadarSource.Authentication => "Authentication / 24h", RadarSource.Tcp => "TCP connections", _ => "UDP endpoints"
     };
+    public static string NextCheck(RadarSource source, RadarSignal signal)
+    {
+        if (signal == RadarSignal.Unknown)
+            return "取得時刻・理由・確認できた範囲を読む。空欄や取得失敗は未確認のまま扱う。";
+        if (Persistence.Contains(source))
+            return signal == RadarSignal.NotCompared
+                ? "インストール前に初回一覧を確認。4項目が揃ったら SET REFERENCE。同じアプリ起動中に再取得して前後を比較する。"
+                : "差分の名前・パス・引数を、直前のインストールや更新と照合する。心当たりのない追加は実行せず、Windows セキュリティの保護の履歴とスキャンで確認する。";
+        return source switch {
+            RadarSource.Defender or RadarSource.Firewall => "Windows セキュリティで同じ保護状態を確認する。他社製ウイルス対策や組織の管理がある場合は、利用中の製品や管理者に照合する。",
+            RadarSource.Authentication => "4625 はログオン失敗。時刻・アカウント・ログオン種別を自分の操作と照合する。4624 の種別10はリモート対話ログオン。心当たりがなければ、その時間帯のリモート利用を確認する。",
+            RadarSource.Tcp => "プロセス名・PID・接続状態・相手先を読む。使っているアプリを通常終了し、READ / REFRESH で変化を見る。海外IPや接続の存在だけで攻撃と判断しない。",
+            _ => "UDP はこのPCの待受だけを表示する。所有プロセスをタスク マネージャーで照合する。通信相手や転送内容はここでは分からない。"
+        };
+    }
     public static string Coverage(RadarCoverage value) => value switch
     { RadarCoverage.Complete => "取得済み / 対象範囲内", RadarCoverage.Partial => "一部のみ取得", RadarCoverage.Cancelled => "中止", _ => "取得できず" };
     public static string Signal(RadarSignal value) => value switch
@@ -105,6 +120,7 @@ internal sealed class RadarSession(IRadarProbe probe)
         if (Busy || !RadarKnowledge.Persistence.All(s => Current.TryGetValue(s, out var r) && r.Coverage == RadarCoverage.Complete)) return false;
         Reference.Clear();
         foreach (var source in RadarKnowledge.Persistence) Reference[source] = Current[source];
+        Changed?.Invoke();
         return true;
     }
     public async Task RefreshAsync(CancellationToken cancellation)
