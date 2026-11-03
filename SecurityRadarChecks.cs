@@ -42,7 +42,10 @@ internal static class SecurityRadarChecks
         result["radar disabled firewall review"] = RadarAnalysis.Assess(Complete(RadarSource.Firewall, new RadarRow("Public", "Public", "False"))).Signal == RadarSignal.Review;
         result["radar zero auth events observational"] = RadarAnalysis.Assess(Complete(RadarSource.Authentication)).Signal == RadarSignal.Observed;
         result["radar logon failure review not compromise"] = RadarAnalysis.Assess(Complete(RadarSource.Authentication, new RadarRow("1", "4625 / logon type 3", "fixture"))).Signal == RadarSignal.Review;
-        result["radar cleared log review"] = RadarAnalysis.Assess(Complete(RadarSource.Authentication, new RadarRow("1", "1102 / logon type n/a", "fixture"))).Signal == RadarSignal.Review;
+        var cleared = RadarAnalysis.Assess(Complete(RadarSource.Authentication, new RadarRow("1", "1102 / logon type n/a", "fixture")));
+        result["radar cleared log review gives the actual reason"] = cleared.Signal == RadarSignal.Review &&
+            cleared.Summary.Contains("ログオン失敗 0 件 / 監査ログ消去 1 件") &&
+            RadarKnowledge.NextCheck(RadarSource.Authentication, cleared.Signal).Contains("1102");
         result["radar remote connection never automatically malicious"] = RadarAnalysis.Assess(await demo.ReadAsync(RadarSource.Tcp, default)).Signal == RadarSignal.Observed;
         var probe = new Probe(); var session = new RadarSession(probe);
         result["radar no baseline before reading"] = !session.SetReference() && probe.Calls == 0;

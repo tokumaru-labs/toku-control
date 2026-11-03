@@ -44,7 +44,7 @@ internal static class RadarKnowledge
                 : "差分の名前・パス・引数を、直前のインストールや更新と照合する。心当たりのない追加は実行せず、Windows セキュリティの保護の履歴とスキャンで確認する。";
         return source switch {
             RadarSource.Defender or RadarSource.Firewall => "Windows セキュリティで同じ保護状態を確認する。他社製ウイルス対策や組織の管理がある場合は、利用中の製品や管理者に照合する。",
-            RadarSource.Authentication => "4625 はログオン失敗。時刻・アカウント・ログオン種別を自分の操作と照合する。4624 の種別10はリモート対話ログオン。心当たりがなければ、その時間帯のリモート利用を確認する。",
+            RadarSource.Authentication => "4625 はログオン失敗。時刻・アカウント・ログオン種別を自分の操作と照合する。4624 の種別10はリモート対話ログオン。心当たりがなければ、その時間帯のリモート利用を確認する。1102 はセキュリティ監査ログの消去。自分や管理者がその時刻に消去したか確認する。",
             RadarSource.Tcp => "プロセス名・PID・接続状態・相手先を読む。使っているアプリを通常終了し、READ / REFRESH で変化を見る。海外IPや接続の存在だけで攻撃と判断しない。",
             _ => "UDP はこのPCの待受だけを表示する。所有プロセスをタスク マネージャーで照合する。通信相手や転送内容はここでは分からない。"
         };
@@ -99,8 +99,8 @@ internal static class RadarAnalysis
         if (read.Source == RadarSource.Authentication)
         {
             int failures = read.Rows.Count(r => r.Label.StartsWith("4625 /", StringComparison.Ordinal));
-            bool cleared = read.Rows.Any(r => r.Label.StartsWith("1102 /", StringComparison.Ordinal));
-            return new(failures > 0 || cleared ? RadarSignal.Review : RadarSignal.Observed, $"{failures} 件のログオン失敗 / {read.Rows.Length} 件の対象イベント",
+            int cleared = read.Rows.Count(r => r.Label.StartsWith("1102 /", StringComparison.Ordinal));
+            return new(failures > 0 || cleared > 0 ? RadarSignal.Review : RadarSignal.Observed, $"ログオン失敗 {failures} 件 / 監査ログ消去 {cleared} 件 / 対象イベント {read.Rows.Length} 件",
                 "24時間の取得範囲のみ。ログオン成功は侵入を意味せず、失敗は入力ミス等でも発生します。監査設定・ログ保持の完全性は未確認。0件は攻撃なしを意味しません。");
         }
         return new(RadarSignal.Observed, $"{read.Rows.Length} 件 / 更新時点の接続・待受", "接続先やポートだけでは悪性判定できません。待受は外部から接続可能という意味ではありません。PIDは再利用され、プロセス情報が取得できない場合もあります。");
