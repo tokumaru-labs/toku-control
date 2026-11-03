@@ -36,14 +36,12 @@ internal sealed class NightMandala : FrameworkElement
         double scale = Math.Min(ActualWidth, ActualHeight) / 256;
         if (scale <= 0) return;
         dc.PushTransform(new MatrixTransform(scale, 0, 0, scale, (ActualWidth - 256*scale)/2, (ActualHeight - 256*scale)/2));
-        dc.DrawRectangle(Retro.Brush("#100D18"), null, new Rect(0,0,256,256));
         dc.PushClip(new RectangleGeometry(Frame));
         double height = Frame.Width * Painting.PixelHeight / Painting.PixelWidth;
         var crop = new Rect(Frame.X, Center.Y - .494 * height, Frame.Width, height);
         if (days >= 365) dc.DrawImage(Painting, crop);
         else
         {
-            dc.PushOpacity(.32); dc.DrawImage(Painting, crop); dc.Pop();
             int left = Math.Max(0, days), band = 0;
             while (left >= BandDays[band])
             {
@@ -70,7 +68,7 @@ internal sealed class NightMandala : FrameworkElement
             }
         }
         dc.Pop();
-        dc.DrawRectangle(null, new Pen(Retro.Brush("#B59A65"), 1), Frame);
+        if (days >= 365) dc.DrawRectangle(null, new Pen(Retro.Brush("#B59A65"), 1), Frame);
         dc.Pop();
     }
 }

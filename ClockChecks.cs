@@ -132,6 +132,9 @@ public sealed partial class ConsoleWindow
             }
             var seed = MandalaFrame(0); var firstDay = MandalaFrame(1); var mature = MandalaFrame(365);
             int center = (128*256+128)*4;
+            int hiddenCornerAlpha = (12*256+12)*4+3;
+            checks["unearned paint is transparent until revealed"] = seed[hiddenCornerAlpha] == 0 &&
+                firstDay[hiddenCornerAlpha] == 0 && mature[hiddenCornerAlpha] == 255;
             checks["painting reveals the center at rest day zero"] = seed.AsSpan(center,4).SequenceEqual(mature.AsSpan(center,4)) &&
                 seed[center]+seed[center+1]+seed[center+2] > 60;
             checks["painted regions grow from the first day to the completed work"] = !seed.SequenceEqual(firstDay) &&
