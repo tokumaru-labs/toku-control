@@ -57,6 +57,11 @@ public sealed partial class ConsoleWindow
             ShowIntelStream(reader, live); var w = intelWindow!; nav["intel"].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["one visible contained taskbar window"] = ReferenceEquals(w, intelWindow) && w.IsVisible && w.ShowInTaskbar && WindowPlacement.WorkArea(w).Contains(WindowPlacement.NativeBounds(w));
             checks["no news request on open"] = fixture.Calls.Count == 0 && w.Online.IsChecked != true && w.Choices.Values.All(c => c.IsChecked != true);
+            Descendants<Button>(w.Layout).Single(b => Equals(b.Content, "使い方")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var guide = w.OwnedWindows.OfType<QuickGuideWindow>().Single();
+            checks["intel guide opens the news topic offline"] = Descendants<TabControl>(guide).Single().SelectedItem is TabItem { Header: "ニュース" } &&
+                fixture.Calls.Count == 0 && w.Online.IsChecked != true && w.Choices.Values.All(c => c.IsChecked != true);
+            guide.Close();
             w.Choices[IntelSource.JpCert].IsChecked = true;
             checks["selecting while offline does not fetch"] = fixture.Calls.Count == 0 && w.Shown.Count == 0;
             var started = DateTimeOffset.UtcNow; w.Online.IsChecked = true; await w.WhenIdle();

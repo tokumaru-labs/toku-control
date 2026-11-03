@@ -106,7 +106,33 @@ public sealed partial class ConsoleWindow
         Directory.CreateDirectory(directory); var checks = new Dictionary<string, object>();
         try
         {
+            Button GuideButton(RetroWindow host) => Descendants<Button>(host.Layout).Single(b => Equals(b.Content, "使い方"));
+            GuideButton(this).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var mainGuide = OwnedWindows.OfType<QuickGuideWindow>().Single();
+            var tabs = Descendants<TabControl>(mainGuide).Single();
+            checks["console guide opens without starting radar or intel"] = mainGuide.IsVisible && radarSession == null && intelWindow == null &&
+                tabs.SelectedItem is TabItem { Header: "PCを点検" };
+            tabs.SelectedIndex = 1; mainGuide.UpdateLayout();
+            checks["comparison guide explains the manual reference"] = Descendants<TextBlock>(mainGuide).Any(t => t.Text.Contains("SET REFERENCE"));
+            GuideButton(this).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["same launcher reuses its guide"] = OwnedWindows.OfType<QuickGuideWindow>().Single() == mainGuide && tabs.SelectedIndex == 0;
+            mainGuide.UpdateLayout();
+            Capture(mainGuide, Path.Combine(directory, "quick-guide.png"));
+            mainGuide.Width = mainGuide.MinWidth; mainGuide.Height = mainGuide.MinHeight; mainGuide.UpdateLayout();
+            var steps = Descendants<ScrollViewer>(tabs).Single(s => s.Content is StackPanel);
+            checks["small guide scrolls to the last step"] = steps.ScrollableHeight > 0 &&
+                steps.ExtentWidth <= steps.ViewportWidth + 1;
+            steps.ScrollToBottom(); mainGuide.UpdateLayout();
+            checks["last step reachable"] = steps.VerticalOffset >= steps.ScrollableHeight - 1;
+            Descendants<Button>(mainGuide).Single(b => Equals(b.Content, "閉じる")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             SelectSection("security"); var first = radarWindow!; SelectSection("security");
+            first.SourcesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var priorDetail = first.DetailText;
+            GuideButton(first).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var radarGuide = first.OwnedWindows.OfType<QuickGuideWindow>().Single();
+            radarGuide.Close();
+            checks["radar guide preserves evidence without reading or setting a reference"] = !mainGuide.IsVisible && !radarGuide.IsVisible &&
+                first.DetailText == priorDetail && !first.MapVisible && first.Session.Current.Count == 0 && first.Session.Reference.Count == 0;
             ShowModule("clock", false); clockTheme.SelectedIndex = 1;
             checks["clock displays unmeasured radar without collecting"] = clockRadar!.Buttons.All(b => b.Content.ToString()!.Contains("未取得")) && radarSession!.Current.Count == 0;
             clockRadar.Buttons[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
