@@ -122,6 +122,20 @@ public sealed partial class ConsoleWindow
                 failed.Growth.EarnedDates!.Contains(originalDay) && otherWindow.Read().LastDay == originalDay.AddDays(1);
             failed.RetrySave();
             checks["late retry cannot double credit"] = otherWindow.Complete(originalDay).Days == 2;
+            byte[] MandalaFrame(int day)
+            {
+                var art = new NightMandala(); art.SetDays(day);
+                art.Measure(new Size(256,256)); art.Arrange(new Rect(0,0,256,256)); art.UpdateLayout();
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(256,256,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(art);
+                byte[] data = new byte[256*256*4]; bitmap.CopyPixels(data,256*4,0); return data;
+            }
+            var seed = MandalaFrame(0); var firstDay = MandalaFrame(1); var mature = MandalaFrame(365);
+            int center = (128*256+128)*4;
+            checks["painting reveals the center at rest day zero"] = seed.AsSpan(center,4).SequenceEqual(mature.AsSpan(center,4)) &&
+                seed[center]+seed[center+1]+seed[center+2] > 60;
+            checks["painted regions grow from the first day to the completed work"] = !seed.SequenceEqual(firstDay) &&
+                !firstDay.SequenceEqual(mature) && MandalaFrame(364).Where((value,i)=>value!=mature[i]).Any();
             // An independent timer keeps the legacy midnight scenarios above unchanged.
             var cycleTime = new RestCheckTime();
             var cycleJournal = new HackerJournal(Path.Combine(store.DirectoryPath, "cycle-check"));
