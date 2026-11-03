@@ -45,3 +45,9 @@ No SoundSwitch implementation, package or binary is included.
 
 Matching application source, shader source and build scripts are available at
 the release tag in [tokumaru-labs/toku-control](https://github.com/tokumaru-labs/toku-control).
+
+## Painting used in 宵環曼荼羅
+
+*Twenty-three Deity Nairatma Mandala*, Central Tibet, c. 1375. Cleveland Museum of Art, purchase from the J. H. Wade Fund, accession 1993.4. The museum lists its digital image under CC0. The bundled JPEG is the museum's unmodified web rendition. The app crops the central composition and progressively reveals its color according to earned rest days. The timing and reveal bands are the app's design.
+
+[Collection record](https://www.clevelandart.org/art/1993.4) · [Museum image](https://openaccess-cdn.clevelandart.org/1993.4/1993.4_web.jpg) · [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)

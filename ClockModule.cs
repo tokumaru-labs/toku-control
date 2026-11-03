@@ -22,12 +22,13 @@ public sealed partial class ConsoleWindow
         }).ToArray();
     }
     TraceConsole traceConsole = null!;
-    bool clockCancelled;
+    string? cancelledCommand;
     Grid clockOverview = null!;
     TraceDetails traceDetails = null!;
     Button detailToggle = null!;
     bool inspectingTrace;
-    Button traceMotion = null!;
+    Button traceMotion = null!, startPomo = null!;
+    NightMandala mandala = null!;
     ComboBox clockTheme = null!;
     MinuteWheel minuteWheel = null!;
     Image room = null!;
@@ -46,12 +47,12 @@ public sealed partial class ConsoleWindow
         roomLabel = Retro.Label("", Retro.Cyan, 11); roomLabel.HorizontalAlignment = HorizontalAlignment.Center;
         var art = new DockPanel { Margin = new Thickness(0, 1, 4, 0) };
         clockTheme = new ComboBox { Height = 23, FontSize = 11, ToolTip = "時計の育成テーマ" };
-        clockTheme.Items.Add("部屋"); clockTheme.Items.Add("TRACE 端末");
-        clockTheme.SelectedIndex = settings.ClockTrace ? 1 : 0;
+        clockTheme.Items.Add("部屋"); clockTheme.Items.Add("TRACE 端末"); clockTheme.Items.Add("宵環曼荼羅");
+        clockTheme.SelectedIndex = settings.ClockMandala ? 2 : settings.ClockTrace ? 1 : 0;
         AutomationProperties.SetName(clockTheme, "時計の育成テーマ");
         clockTheme.SelectionChanged += (_, _) =>
         {
-            settings.ClockTrace = clockTheme.SelectedIndex == 1;
+            settings.ClockTrace = clockTheme.SelectedIndex == 1; settings.ClockMandala = clockTheme.SelectedIndex == 2;
             Save();
             RenderRest(window);
         };
@@ -76,6 +77,7 @@ public sealed partial class ConsoleWindow
         clockRadar = snapshot; snapshot.Bind(radarSession);
         window.Closed += (_, _) => { snapshot.Bind(null); if (clockRadar == snapshot) clockRadar = null; };
         scene.Children.Add(snapshot);
+        mandala = new NightMandala(); scene.Children.Add(mandala);
         art.Children.Add(scene); body.Children.Add(art);
 
         var controls = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -87,10 +89,10 @@ public sealed partial class ConsoleWindow
         startRest = Retro.Button("START", "選んだ分数で無音タイマーを開始", () =>
         {
             if (rest.PendingSave) rest.RetrySave();
-            else if (rest.Start(selectedMinutes)) { clockCancelled = false; Log("INFO", $"silent timer set / {selectedMinutes} min"); }
+            else if (rest.Start(selectedMinutes)) { cancelledCommand = null; Log("INFO", $"silent timer set / {selectedMinutes} min"); }
             RenderRest(window);
         });
-        resetRest = Retro.Button("RESET", "タイマーを中断して待機に戻る", () => { clockCancelled = rest.Running && rest.Remaining > TimeSpan.Zero; rest.Reset(); RenderRest(window); });
+        resetRest = Retro.Button("RESET", "タイマーを中断して待機に戻る", () => { cancelledCommand = rest.Running && rest.Remaining > TimeSpan.Zero ? (rest.Focusing ? "focus.cancel" : "rest.cancel") : null; rest.Reset(); RenderRest(window); });
         var pin = Retro.Button("PIN", "時計の最前面固定を切り替える", () => { window.Topmost = !window.Topmost; SavePositions(); });
         var actions = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         remaining = Retro.Label("", Retro.Green, 12); actions.Children.Add(remaining);
@@ -109,7 +111,13 @@ public sealed partial class ConsoleWindow
         var footerBox = (Border)window.Footer.Parent;
         footerBox.Child = null;
         var footerRow = new DockPanel(); DockPanel.SetDock(detailToggle, Dock.Right);
-        footerRow.Children.Add(detailToggle); footerRow.Children.Add(window.Footer); footerBox.Child = footerRow;
+        footerRow.Children.Add(detailToggle);
+        startPomo = Retro.Button("20/5 ▶", "ポモドーロ開始：集中20分と休憩5分を繰り返す", () => {
+            if (rest.StartPomodoro()) { cancelledCommand = null; RenderRest(window); }
+        });
+        startPomo.MinHeight = 18; startPomo.Padding = new Thickness(5,0,5,0); startPomo.Margin = new Thickness(0,0,2,0);
+        AutomationProperties.SetName(startPomo, "ポモドーロ開始 集中20分／休憩5分");
+        DockPanel.SetDock(startPomo, Dock.Right); footerRow.Children.Add(startPomo); footerRow.Children.Add(window.Footer); footerBox.Child = footerRow;
         RenderRest(window);
         return window;
     }
@@ -117,16 +125,18 @@ public sealed partial class ConsoleWindow
     {
         var growth = rest.Growth;
         room.Source = HackerScenes.Value[growth.Scene];
-        room.Visibility = settings.ClockTrace ? Visibility.Collapsed : Visibility.Visible;
+        mandala.Visibility = settings.ClockMandala ? Visibility.Visible : Visibility.Collapsed;
+        if (settings.ClockMandala) mandala.SetDays(growth.Days);
+        room.Visibility = settings.ClockTrace || settings.ClockMandala ? Visibility.Collapsed : Visibility.Visible;
         clockRadar!.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
-        roomLabel.Text = settings.ClockTrace ? $"STAGE {growth.Scene + 1}/4 · {growth.Days}日" : $"{growth.SceneName} · DAY {growth.Days:000}";
+        roomLabel.Text = settings.ClockMandala ? $"{growth.Days}日 · 本日{rest.TodayRounds}周" : settings.ClockTrace ? $"STAGE {growth.Scene + 1}/4 · {growth.Days}日" : $"{growth.SceneName} · DAY {growth.Days:000}";
         AutomationProperties.SetName(room, "ねむまる・ハッカー版 / " + roomLabel.Text);
         clockDate!.Visibility = settings.ClockTrace ? Visibility.Collapsed : Visibility.Visible;
         int seconds = (int)Math.Ceiling(rest.Remaining.TotalSeconds);
-        string command = rest.Running ? $"rest.start {rest.Minutes}m" :
-            rest.Finished ? "rest.result" : clockCancelled ? "rest.cancel" : "trace.status";
+        string command = rest.Focusing ? "focus.start 20m" : rest.Running ? $"rest.start {rest.Minutes}m" :
+            rest.Finished ? "rest.result" : cancelledCommand ?? "trace.status";
         string status = rest.Running ? $"LEFT {seconds / 60:00}:{seconds % 60:00}" : rest.PendingSave ? "SAVE PENDING" :
-            rest.Finished ? "COMPLETE" : clockCancelled ? "CANCELLED" : "READY";
+            rest.Finished ? "COMPLETE" : cancelledCommand != null ? "CANCELLED" : "READY";
         if (!settings.ClockTrace) inspectingTrace = false;
         detailToggle.Visibility = settings.ClockTrace ? Visibility.Visible : Visibility.Collapsed;
         detailToggle.Content = inspectingTrace ? "← CLOCK" : "DETAIL";
@@ -143,14 +153,16 @@ public sealed partial class ConsoleWindow
         string motionHint = !traceMotion.IsEnabled ? "Windowsの設定で動きを停止中" :
             settings.ClockCodeMotion ? "端末のタイプ演出を停止" : "端末のタイプ演出を再開";
         traceMotion.ToolTip = motionHint; AutomationProperties.SetName(traceMotion, motionHint);
-        remaining.Text = rest.Running ? $"残り {seconds / 60:00}:{seconds % 60:00}" : rest.Finished ? "休憩完了" : "休憩タイマー";
+        remaining.Text = rest.Running ? $"{(rest.Focusing ? "集中" : rest.Cycling ? "休憩" : "残り")} {seconds / 60:00}:{seconds % 60:00}" : rest.Finished ? "休憩完了" : "休憩タイマー";
         timerBar.Value = rest.Running ? 1 - rest.Remaining.TotalMinutes / rest.Minutes : rest.Finished ? 1 : 0;
         minuteWheel.IsEnabled = !rest.Running && !rest.PendingSave;
+        startPomo.IsEnabled = !rest.Running && !rest.PendingSave;
+        startPomo.Visibility = inspectingTrace ? Visibility.Collapsed : Visibility.Visible;
         startRest.IsEnabled = !rest.Running;
         startRest.Content = rest.PendingSave ? "再保存" : "START";
         startRest.ToolTip = rest.PendingSave ? "完了した休憩の日付を保存し直す" : "選んだ分数で無音タイマーを開始";
         AutomationProperties.SetName(startRest, rest.PendingSave ? "再保存" : "START");
         resetRest.IsEnabled = !rest.PendingSave && (rest.Running || rest.Finished);
-        window.Footer.Text = rest.Warning ?? (rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : settings.ClockTrace ? $"> rest.days={growth.Days:000}  stage={growth.Scene + 1:00}/04" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
+        window.Footer.Text = rest.Warning ?? (rest.Cycling ? $"POMO 20/5 · 本日{rest.TodayRounds}周 · RESETで停止" : rest.Finished ? $"休憩完了 / 成長 {growth.Days}日 · 1日1回" : settings.ClockTrace ? $"> rest.days={growth.Days:000}  stage={growth.Scene + 1:00}/04" : "NEMUMARU  /  HACKER ROOM   ·   無音タイマー");
     }
 }

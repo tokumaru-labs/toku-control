@@ -122,6 +122,52 @@ public sealed partial class ConsoleWindow
                 failed.Growth.EarnedDates!.Contains(originalDay) && otherWindow.Read().LastDay == originalDay.AddDays(1);
             failed.RetrySave();
             checks["late retry cannot double credit"] = otherWindow.Complete(originalDay).Days == 2;
+            byte[] MandalaFrame(int day)
+            {
+                var art = new NightMandala(); art.SetDays(day);
+                art.Measure(new Size(256,256)); art.Arrange(new Rect(0,0,256,256)); art.UpdateLayout();
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(256,256,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(art);
+                byte[] data = new byte[256*256*4]; bitmap.CopyPixels(data,256*4,0); return data;
+            }
+            var seed = MandalaFrame(0); var firstDay = MandalaFrame(1); var mature = MandalaFrame(365);
+            int center = (128*256+128)*4;
+            int hiddenCornerAlpha = (12*256+12)*4+3;
+            checks["unearned paint is transparent until revealed"] = seed[hiddenCornerAlpha] == 0 &&
+                firstDay[hiddenCornerAlpha] == 0 && mature[hiddenCornerAlpha] == 255;
+            checks["painting reveals the center at rest day zero"] = seed.AsSpan(center,4).SequenceEqual(mature.AsSpan(center,4)) &&
+                seed[center]+seed[center+1]+seed[center+2] > 60;
+            checks["painted regions grow from the first day to the completed work"] = !seed.SequenceEqual(firstDay) &&
+                !firstDay.SequenceEqual(mature) && MandalaFrame(364).Where((value,i)=>value!=mature[i]).Any();
+            // An independent timer keeps the legacy midnight scenarios above unchanged.
+            var cycleTime = new RestCheckTime();
+            var cycleJournal = new HackerJournal(Path.Combine(store.DirectoryPath, "cycle-check"));
+            var cycle = new HackerRest(cycleJournal, cycleTime); cycle.Load();
+            checks["cycle starts opt-in with twenty minutes focus"] = cycle.StartPomodoro() && cycle.Focusing && cycle.Remaining.TotalMinutes == 20 && cycle.History.Runs.Count == 0;
+            cycleTime.Add(TimeSpan.FromSeconds(1202)); cycle.Advance();
+            checks["automatic five-minute break anchored to boundary"] = !cycle.Focusing && cycle.Cycling && cycle.Remaining.TotalSeconds == 298 && cycle.Growth.Days == 0;
+            cycleTime.Add(TimeSpan.FromSeconds(298)); cycle.Advance(); cycle.Advance();
+            checks["complete cycle credits one round and starts focus"] = cycle.Focusing && cycle.TodayRounds == 1 && cycle.Growth.Days == 1;
+            cycleTime.Add(TimeSpan.FromMinutes(20)); cycle.Advance(); cycleTime.Add(TimeSpan.FromMinutes(5)); cycle.Advance();
+            checks["two rounds share one growth day and survive reload"] = cycle.TodayRounds == 2 && cycleJournal.Read().RoundIds?.Length == 2 && cycle.Growth.Days == 1;
+            cycle.Reset(); cycle.StartPomodoro(); cycleTime.Add(TimeSpan.FromMinutes(20)); cycle.Advance(); cycleTime.Add(TimeSpan.FromMinutes(1)); cycle.Reset();
+            checks["partial round and reset stop future phases"] = !cycle.Cycling && !cycle.Running && cycle.TodayRounds == 2;
+            cycle.StartPomodoro(); cycleTime.Add(TimeSpan.FromHours(5)); cycle.Advance();
+            checks["missed phases do not award unattended rounds"] = !cycle.Running && cycle.TodayRounds == 2;
+            var sameRound = Guid.NewGuid();
+            var roundDate = DateOnly.FromDateTime(cycleTime.GetLocalNow().DateTime);
+            var counts = cycleJournal.Complete(roundDate, sameRound).RoundIds!.Length;
+            var concurrentWriter = new HackerJournal(Path.Combine(store.DirectoryPath, "cycle-check"));
+            concurrentWriter.Complete(roundDate, Guid.NewGuid());
+            checks["retry cannot duplicate a saved round even after another writer"] =
+                cycleJournal.Complete(roundDate, sameRound).RoundIds!.Length == counts + 1;
+            cycleTime.Add(TimeSpan.FromDays(1));
+            checks["daily round display rolls over"] = cycle.TodayRounds == 0;
+            clockTheme.SelectedIndex = 2; var cycleWindow = modules["clock"]; cycleWindow.UpdateLayout(); Click(startPomo); cycleWindow.UpdateLayout();
+            checks["mandala and explicit cycle button work in the clock"] = mandala.IsVisible && !room.IsVisible &&
+                !clockRadar!.IsVisible && rest.Focusing && remaining.Text.Contains("集中") && !startPomo.IsEnabled;
+            Capture(cycleWindow, Path.Combine(directory, "clock-pomodoro.png")); Click(resetRest);
+            checks["stop returns the ordinary timer"] = !rest.Cycling && startRest.IsEnabled && minuteWheel.IsEnabled;
             string capDir = Path.Combine(store.DirectoryPath, "cap-fixture"); Directory.CreateDirectory(capDir);
             string capFile = Path.Combine(capDir, "growth-v1.json");
             File.WriteAllText(capFile, JsonSerializer.Serialize(new HackerGrowth(364, future)));
