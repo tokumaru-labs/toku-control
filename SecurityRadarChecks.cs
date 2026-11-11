@@ -56,10 +56,70 @@ internal static class SecurityRadarChecks
             cleared.Summary.Contains("ログオン失敗 0 件 / 監査ログ消去 1 件") &&
             RadarKnowledge.NextCheck(RadarSource.Authentication, cleared.Signal).Contains("1102");
         result["radar remote connection never automatically malicious"] = RadarAnalysis.Assess(await demo.ReadAsync(RadarSource.Tcp, default)).Signal == RadarSignal.Observed;
+        static RadarRow Endpoint(string key, int pid, string? name) => new(key, "display label", "endpoint", new(pid, name));
+        var tcp = Complete(RadarSource.Tcp, Endpoint("1", 42, "Browser"), Endpoint("2", 42, "Browser"), Endpoint("3", 51, "Browser"));
+        var udp = Complete(RadarSource.Udp, Endpoint("1", 42, "browser"), Endpoint("2", 51, "Other"), Endpoint("3", 53, "Browser"));
+        var overlap = RadarAnalysis.NetworkOwnerSummary(tcp, udp);
+        result["radar network groups by both PID and name and counts rows"] =
+            overlap.Contains("PID 42 / Browser　TCP 2 行・UDP 1 行") && !overlap.Contains("PID 53 /");
+        result["radar network excludes conflicting owners"] = !overlap.Contains("PID 51 /") && overlap.Contains("名前が異なるため除外: 1 件");
+        var ambiguousTcp = tcp with { Rows = [.. tcp.Rows, Endpoint("4", 42, null)] };
+        result["radar unidentified owner prevents attribution for its PID"] =
+            !RadarAnalysis.NetworkOwnerSummary(ambiguousTcp, udp).Contains("PID 42 /");
+        result["radar incomplete network observations defer matching"] =
+            Enum.GetValues<RadarCoverage>().Where(c => c != RadarCoverage.Complete).All(c =>
+                RadarAnalysis.NetworkOwnerSummary(tcp with { Coverage = c }, udp).Contains("照合保留") &&
+                !RadarAnalysis.NetworkOwnerSummary(tcp, udp with { Coverage = c }).Contains("PID 42 /")) &&
+            RadarAnalysis.NetworkOwnerSummary(tcp, null).Contains("UDP: 未取得");
+        var legacy = Complete(RadarSource.Udp, new RadarRow("1", "Browser / PID 42", "local"));
+        result["radar never matches by display label alone"] = !RadarAnalysis.NetworkOwnerSummary(tcp, legacy).Contains("PID 42 /");
+        var crowded = Enumerable.Range(1, 21).Select(pid => Endpoint(pid.ToString(), pid, "fixture")).ToArray();
+        var limited = RadarAnalysis.NetworkOwnerSummary(tcp with { Rows = crowded }, udp with { Rows = crowded });
+        result["radar network summary caps display and reports the full match count"] =
+            limited.Contains("PID 20 / fixture") && !limited.Contains("PID 21 / fixture") && limited.Contains("一致 21 件のうち先頭 20 件");
+        const string ownerJson = """{"State":"Complete","CapturedAt":"2026-11-11T00:00:00Z","Note":"fixture","Rows":[{"Key":"1","Label":"display","Value":"local","Owner":{"Pid":42,"Name":"Browser"}}]}""";
+        result["radar reads structured process ownership from probe JSON"] =
+            WindowsRadarProbe.Parse(RadarSource.Tcp, ownerJson).Rows.Single().Owner == new RadarOwner(42, "Browser");
+        const string detectionJson = """{"State":"Partial","CapturedAt":"2026-11-11T01:01:00Z","Note":"fixture","Rows":[{"Key":"1","Label":"Fixture.Detection","Value":"C:\\Fixture\\Browser.exe","RecordedAt":"2026-11-11T01:00:50Z","DetectedAt":"2026-11-11T01:00:00Z"}]}""";
+        var history = WindowsRadarProbe.Parse(RadarSource.DefenderHistory, detectionJson);
+        var detection = history.Rows.Single();
+        var detected = detection.DetectedAt!.Value;
+        var nearby = tcp with { CapturedAt = detected.AddMinutes(5) };
+        var old = udp with { CapturedAt = detected.AddMinutes(-5).AddTicks(-1) };
+        var evidence = DefenderHistoryEvidence.Describe(detection, nearby, old);
+        result["radar detection keeps both times and matches only within five minutes per network source"] =
+            detection.RecordedAt - detected == TimeSpan.FromSeconds(50) && evidence.Contains("PID 42 (2 行)") &&
+            evidence.Contains("PID 51 (1 行)") && !evidence.Contains("PID 53") && evidence.Contains("5分を超える");
+        result["radar detection defers missing times, names or incomplete sources"] =
+            !DefenderHistoryEvidence.Describe(detection with { DetectedAt = null }, nearby, null).Contains("同名候補") &&
+            !DefenderHistoryEvidence.Describe(detection, nearby with { Coverage = RadarCoverage.Partial }, null).Contains("同名候補") &&
+            new[] { "", "Unknown", @"C:\Unknown.exe", "cmd.exe /c Browser.exe", @"cmd /c C:\Tools\Browser.exe",
+                @"powershell -File C:\Tools\Browser.exe", @"C:\Windows\System32\cmd /c .\Browser.exe",
+                @"C:\Windows\System32\powershell -File .\Browser.exe", @"C:\Tools\..\Browser.exe", @"relative\Browser.exe", "Browser" }.All(name =>
+                !DefenderHistoryEvidence.Describe(detection with { Value = name }, nearby, null).Contains("同名候補"));
+        var demoTcp = Complete(RadarSource.Tcp, Endpoint("1", 100, "Example browser")) with { CapturedAt = detected.AddMinutes(-5) };
+        result["radar explicitly handles simple names and absolute paths with spaces at the negative time boundary"] =
+            new[] { "Example browser.exe", @"C:\Program Files\Example browser.EXE", @"""C:\Program Files\Example browser.exe""" }.All(value =>
+                DefenderHistoryEvidence.Describe(detection with { Value = value }, demoTcp, null).Contains("PID 100 (1 行)"));
+        result["radar detection excludes conflicting and unidentified rows for the same PID"] =
+            new string?[] { "Other", null }.All(name =>
+                !DefenderHistoryEvidence.Describe(detection, nearby with { Rows = [.. nearby.Rows, Endpoint("4", 42, name)] }, null).Contains("PID 42 ("));
+        result["radar detection fields cannot forge another evidence line"] =
+            !DefenderHistoryEvidence.Describe(detection with { Label = "Fixture\nspoofed", Value = "Browser.exe\r" }, nearby, null)
+                .Contains("\nspoofed") && !DefenderHistoryEvidence.Describe(detection with { Value = "Browser.exe\r" }, nearby, null).Contains("PID 42 (");
+        var unknownOwners = nearby with { Rows = [Endpoint("1", 0, "Browser"), Endpoint("2", 12, null), Endpoint("3", -1, "Browser")] };
+        result["radar detection excludes unresolved and nonpositive PIDs"] =
+            !DefenderHistoryEvidence.Describe(detection, unknownOwners, null).Contains("PID 12 (") &&
+            DefenderHistoryEvidence.Describe(detection, unknownOwners, null).Contains("同名候補なし");
+        result["radar partial detections remain visible independently of protection and technique assessments"] =
+            RadarAnalysis.Assess(history).Signal == RadarSignal.Review && RadarAnalysis.Assess(history).Summary.Contains("一部のみ") &&
+            RadarAnalysis.Assess(history with { Rows = [] }).Signal == RadarSignal.Unknown &&
+            RadarAnalysis.Assess(Complete(RadarSource.DefenderHistory)).Signal == RadarSignal.Observed &&
+            !RadarKnowledge.Techniques.Any(t => t.Sources.Contains(history.Source)) && !RadarKnowledge.Persistence.Contains(history.Source);
         var probe = new Probe(); var session = new RadarSession(probe);
         result["radar no baseline before reading"] = !session.SetReference() && probe.Calls == 0;
         await session.RefreshAsync(default);
-        result["radar reads all sources without auto baseline"] = probe.Calls == 9 && session.Reference.Count == 0;
+        result["radar reads all sources without auto baseline"] = probe.Calls == 10 && session.Reference.Count == 0;
         result["radar manual baseline"] = session.SetReference() && session.Reference.Count == 4;
         var reference = session.Reference[RadarSource.RunKeys];
         probe.Read = (s, _) => throw new UnauthorizedAccessException();
@@ -72,7 +132,7 @@ internal static class SecurityRadarChecks
         result["radar concurrent refresh and baseline blocked"] = probe.Calls == calls && !session.SetReference();
         gate.SetResult(); await pending;
         using var cancel = new CancellationTokenSource(); cancel.Cancel(); await session.RefreshAsync(cancel.Token);
-        result["radar cancellation finishes all sources honestly"] = !session.Busy && session.Current.Count == 9 && session.Current.Values.All(r => r.Coverage == RadarCoverage.Cancelled);
+        result["radar cancellation finishes all sources honestly"] = !session.Busy && session.Current.Count == 10 && session.Current.Values.All(r => r.Coverage == RadarCoverage.Cancelled);
         var json = "{\"State\":\"Complete\",\"CapturedAt\":\"2026-11-01T00:00:00Z\",\"Note\":\"fixture\",\"Rows\":[{\"Key\":\"a\",\"Label\":\"日本語\",\"Value\":\"$(do not execute)\"}]}";
         result["radar unicode and command-looking strings remain data"] = WindowsRadarProbe.Parse(RadarSource.RunKeys, json).Rows.Single().Value == "$(do not execute)";
         bool Throws(string value) { try { WindowsRadarProbe.Parse(RadarSource.RunKeys, value); return false; } catch { return true; } }
@@ -83,6 +143,8 @@ internal static class SecurityRadarChecks
         try { await WindowsRadarProbe.BoundedReadAsync(reader, 4, default); result["radar output memory bound"] = false; } catch (InvalidDataException) { result["radar output memory bound"] = true; }
         var info = WindowsRadarProbe.StartInfo(RadarSource.Tcp);
         result["radar trusted fixed probe without elevation or policy bypass"] = Path.IsPathFullyQualified(info.FileName) && !info.UseShellExecute && info.CreateNoWindow && info.Verb != "runas" && info.ArgumentList.Contains("-NoProfile") && !info.ArgumentList.Contains("-ExecutionPolicy") && !info.Environment["PSModulePath"]!.Contains("Users", StringComparison.OrdinalIgnoreCase);
+        result["radar all fixed probes fit Windows command line on CRLF checkouts"] = Enum.GetValues<RadarSource>().All(source =>
+            WindowsRadarProbe.StartInfo(source).ArgumentList.Last().ReplaceLineEndings("\r\n").Length <= 15000);
         return result;
     }
     public static int RunCli(string[] args, bool live)
@@ -99,7 +161,7 @@ internal static class SecurityRadarChecks
             var session = new RadarSession(new WindowsRadarProbe()); session.RefreshAsync(default).GetAwaiter().GetResult();
             // Test evidence contains only status/count metadata, never accounts, IPs or commands.
             report["sources"] = session.Current.Values.Select(r => new { source = r.Source.ToString(), coverage = r.Coverage.ToString(), count = r.Rows.Length, r.CapturedAt, r.Note }).ToArray();
-            report["live collection completed"] = session.Current.Count == 9;
+            report["live collection completed"] = session.Current.Count == 10;
         }
         report["passed"] = checks.Values.All(v => v);
         var path = Path.GetFullPath(args[index + 1]); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -154,8 +216,13 @@ public sealed partial class ConsoleWindow
             first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["map navigation does not collect"] = first.MapVisible && first.Session.Current.Count == 0;
             await first.RefreshAsync(); first.UpdateLayout();
-            checks["nine demo sources"] = first.Session.Current.Count == 9 && first.CardCount == 7;
+            checks["ten demo sources"] = first.Session.Current.Count == 10 && first.CardCount == 7;
             checks["refresh keeps map visible"] = first.MapVisible && first.MapButtons.Count == 7;
+            first.HistoryButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["detection history opens separate demo evidence and same-name candidates"] =
+                first.CardCount == 10 && first.DetailText.Contains("Demo.Sample") && first.DetailText.Contains("記録時刻:") &&
+                first.DetailText.Contains("検出時刻:") && first.DetailText.Contains("PID 100 (1 行)") && first.DetailText.Contains("当時の通信");
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["reference pending on clock"] = clockRadar!.Buttons[1].Content.ToString()!.Contains("未比較");
             checks["baseline button works"] = first.ReferenceButton.IsEnabled;
             first.ReferenceButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -187,14 +254,24 @@ public sealed partial class ConsoleWindow
                 allNodes &= !first.MapVisible && first.DetailText.Contains(RadarKnowledge.Techniques[i].Id);
             }
             checks["all map nodes open their evidence"] = allNodes;
+            first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            int networkIndex = Array.FindIndex(RadarKnowledge.Techniques, t => t.Id == "T1071");
+            first.MapButtons[networkIndex].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["network map connects both demo lists and retains the raw evidence"] = first.DetailText.Contains("TCP・UDP の所有プロセス照合") &&
+                first.DetailText.Contains("PID 100 / Example browser　TCP 1 行・UDP 1 行") &&
+                first.DetailText.Contains("203.0.113.20") && first.DetailText.Contains("[127.0.0.1]:5353");
             first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); first.UpdateLayout();
             checks["attack map button returns to overview"] = first.MapVisible && first.MapButtons.Count == 7 && first.DetailText.Length == 0;
             Capture(first, Path.Combine(directory, "radar-map.png"));
             first.SourcesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); first.SelectCard(7);
-            checks["source details"] = first.CardCount == 9 && first.DetailText.Contains("203.0.113.20") && first.DetailText.Contains("OBSERVED");
+            checks["source details"] = first.CardCount == 10 && first.DetailText.Contains("203.0.113.20") && first.DetailText.Contains("OBSERVED");
             first.MapButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            checks["source to map retains observations and reference"] = first.MapVisible && first.Session.Current.Count == 9 && first.Session.Reference.Count == 4;
+            checks["source to map retains observations and reference"] = first.MapVisible && first.Session.Current.Count == 10 && first.Session.Reference.Count == 4;
             first.Width = 760; first.Height = 540; first.UpdateLayout();
+            var historyBounds = first.HistoryButton.TransformToAncestor(first).TransformBounds(new Rect(first.HistoryButton.RenderSize));
+            var mapLeft = first.MapButton.TranslatePoint(new Point(), first).X;
+            checks["detection tab fits radar navigation at small width"] = first.HistoryButton.IsVisible &&
+                historyBounds.Width > 0 && historyBounds.Right <= mapLeft + 340 && historyBounds.Right <= first.ActualWidth;
             checks["toolbar fits small window"] = first.ReferenceButton.TranslatePoint(new Point(first.ReferenceButton.ActualWidth, 0), first).X < first.ActualWidth;
             checks["small map uses one column within window"] = first.MapColumns == 1 && first.MapButtons.All(b => b.TranslatePoint(new Point(b.ActualWidth, 0), first).X <= first.ActualWidth);
             Capture(first, Path.Combine(directory, "radar-small.png"));
@@ -208,7 +285,7 @@ public sealed partial class ConsoleWindow
             closing.Close(); ShowSecurityRadar(); var reopened = radarWindow!;
             checks["reopened window waits for active read"] = !reopened.RefreshButton.IsEnabled;
             gate.SetResult(); await pending;
-            checks["reopened window observes completion"] = reopened.RefreshButton.IsEnabled && !reopened.CancelButton.IsEnabled && reopened.Session.Current.Count == 9;
+            checks["reopened window observes completion"] = reopened.RefreshButton.IsEnabled && !reopened.CancelButton.IsEnabled && reopened.Session.Current.Count == 10;
             reopened.Close();
         }
         catch (Exception ex) { checks["error"] = ex.ToString(); }
