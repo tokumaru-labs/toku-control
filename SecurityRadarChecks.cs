@@ -25,6 +25,15 @@ internal static class SecurityRadarChecks
         result["radar explicit add change remove"] = changes.Length == 3 && changes.Single(c => c.Kind == "CHANGED").Before == "old" && changes.Any(c => c.Kind == "ADDED") && changes.Any(c => c.Kind == "REMOVED");
         result["radar first inventory is not suspicious"] = RadarAnalysis.Assess(before).Signal == RadarSignal.NotCompared;
         result["radar unchanged is observation not assurance"] = RadarAnalysis.Assess(before, before).Signal == RadarSignal.Observed;
+        var firstInventory = RadarKnowledge.NextCheck(before.Source, RadarAnalysis.Assess(before).Signal);
+        result["radar first Run inventory guides both reference and value inspection"] =
+            firstInventory.Contains("SET REFERENCE") && firstInventory.Contains("値名") && firstInventory.Contains("引数");
+        var task = Complete(RadarSource.ScheduledTasks, new RadarRow("task", "Example task", "old"));
+        var partialTask = task with { Coverage = RadarCoverage.Partial, Rows = [] };
+        var partialGuide = RadarKnowledge.NextCheck(task.Source, RadarAnalysis.Assess(partialTask, task).Signal);
+        result["radar partial task guides visible actions without implying a comparison"] =
+            partialGuide.Contains("未確認") && partialGuide.Contains("タスク スケジューラ") &&
+            !partialGuide.Contains("SET REFERENCE") && !partialGuide.Contains("BEFORE / AFTER");
         foreach (var coverage in new[] { RadarCoverage.Partial, RadarCoverage.Unavailable, RadarCoverage.Cancelled })
         {
             var failed = after with { Coverage = coverage, Rows = [] };
@@ -158,6 +167,8 @@ public sealed partial class ConsoleWindow
             checks["explicit reference set"] = first.Session.Reference.Count == 4;
             first.MapButtons[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             checks["map opens evidence"] = first.DetailText.Contains("T1547.001") && first.DetailText.Contains("DEMO");
+            checks["autorun map shows separate registry and shortcut checks"] =
+                first.DetailText.Contains("値名") && first.DetailText.Contains("ショートカット自体");
             Capture(first, Path.Combine(directory, "radar-detail.png"));
             var mixed = new RadarSession(new SecurityRadarChecks.Probe { Read = (source, _) => Task.FromResult(
                 source == RadarSource.Defender ? new RadarRead(source, RadarCoverage.Complete, DateTimeOffset.Now, "fixture", [new("RealTimeProtectionEnabled", "RealTimeProtectionEnabled", "False")]) :
