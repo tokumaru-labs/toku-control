@@ -2,7 +2,7 @@
 
 Open **security radar** in the left navigation, then **READ / REFRESH**. Opening
 the window does not start a scan. Seven technique families map to nine Windows
-observation sources. **ATTACK MAP** opens a grouped overview of technique-to-source
+observation sources. A tenth source shows Defender detection history independently. **ATTACK MAP** opens a grouped overview of technique-to-source
 relationships; it is also the initial view. Click a node or left-hand card for
 evidence, then use **ATTACK MAP** to return to the overview. The diagram is not an
 observed intrusion path. Selecting a view never starts collection. Evidence includes
@@ -23,12 +23,27 @@ names, arguments and paths with the software installed. Investigate unexplained 
 in Windows Security. A reference taken after an incident describes the present state only.
 For connection questions, inspect TCP process, PID, state and address. Repeat the read
 after closing the known application. UDP rows describe local endpoints.
+In **ATTACK MAP → T1071**, the two network lists from the current manual refresh
+are grouped by matching positive PID and process name. The first 20 matches show
+their TCP and UDP row counts. Both lists must be complete. A missing or conflicting
+name excludes that PID, and both original lists remain available below the summary.
+TCP and UDP are sampled separately. A PID can be reused even by another instance
+of the same program. A match does not establish a shared connection or a threat.
+
+Use **検出履歴** for Defender Operational event 1116. The newest 50 records
+written in the last 24 hours are retained, with both the event record time and
+the reported detection time. For each protocol, a complete snapshot within
+five minutes of the detection time can show same-name candidates with positive
+PIDs and row counts. Missing detection times never use record time for matching.
+Current sockets cannot establish historical traffic, process identity, cause,
+or remediation. Check the detection and action in Windows Security.
 
 ## Coverage
 
 | Stage | Source | Observed scope |
 | --- | --- | --- |
 | Protection | Defender | Service, antivirus, real-time, behavior and tamper-protection flags; mode and signature timestamp. False values request review; absent properties remain unknown. Other AV/passive mode require context. |
+| Detection history | Defender Operational log | Local Microsoft-Windows-Windows Defender provider, event 1116. Threat name and reported process only, plus timestamps. Event paths are treated as text. Disabled or unreadable channels are unavailable. Retention and action taken are unknown. |
 | Protection | Firewall | Domain, Private and Public profiles in ActiveStore, including inactive profiles. Rules, filtering effectiveness and external reachability are not tested. |
 | Persistence | Run keys | Current-user/machine Run and RunOnce, both registry views. Values are not expanded or executed. Other users and autorun locations are outside scope. |
 | Persistence | Startup folders | Current-user/common local fixed-drive folders; SHA-256 of file content, including shortcuts. Targets are not resolved. Redirected folders/reparse points and files over 8 MiB produce partial status. |
@@ -55,14 +70,14 @@ installs/updates also produce these. Re-setting explicitly replaces the referenc
 closing the radar retains it, closing the app discards it. Normal UI use does not
 save or upload raw snapshots, IPs, accounts, commands or reference files.
 
-Unavailable, cancelled or truncated sources are **UNKNOWN**. Partial rows can be
+Unavailable or cancelled sources are **UNKNOWN**. Truncation or missing fields produce partial coverage. A partial detection history keeps confirmed 1116 records visible as **REVIEW**. Partial rows can be
 inspected but cannot become a reference or produce deletion claims. Any failed
 persistence source blocks setting the four-source reference. Refresh clears the
 current observations first so stale success is not presented as fresh evidence.
 Each source has its own time: this is not an atomic snapshot or continuous monitor.
 
 Each probe has a 20-second deadline and cancellation. Limits: 2,000 inventory rows,
-500 authentication events and 1,000 network rows per source, a combined text budget
+50 detection records, 500 authentication events and 1,000 network rows per source, a combined text budget
 and bounded stdout/stderr. Limits produce partial status. Access denial never
 causes elevation or audit-policy changes. Zero events does not mean no attacks.
 Connections, listening ports, failed logons and startup changes alone do not prove

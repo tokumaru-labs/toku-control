@@ -18,7 +18,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
     readonly TextBlock status = Retro.Label("NOT SCANNED / 調べる項目と説明を選べます", Retro.Cyan, 12);
     readonly TextBlock referenceStatus = Retro.Label("比較基準なし / アプリ終了までのメモリ内だけで保持", Retro.Dim, 11);
     readonly TextBox detail = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Retro.Background, Foreground = Retro.Text, BorderThickness = new Thickness(0), Padding = new Thickness(12), FontSize = 13 };
-    internal readonly Button RefreshButton, CancelButton, ReferenceButton, MapButton, SourcesButton;
+    internal readonly Button RefreshButton, CancelButton, ReferenceButton, MapButton, SourcesButton, HistoryButton;
     CancellationTokenSource? cancellation;
     bool closed, sourceView;
     int selected = -1;
@@ -48,7 +48,8 @@ internal sealed class SecurityRadarWindow : RetroWindow
         var left = new DockPanel();
         MapButton = Retro.Button("ATTACK MAP", "手口と確認項目の対応図へ戻る", () => SetView(false));
         SourcesButton = Retro.Button("SOURCES", "取得元ごとの状態・範囲を表示", () => SetView(true));
-        var tabs = Retro.Col(Retro.Row(MapButton, SourcesButton), viewHint);
+        HistoryButton = Retro.Button("検出履歴", "Defender の直近24時間の検出記録を表示", () => ShowSource(RadarSource.DefenderHistory));
+        var tabs = Retro.Col(Retro.Row(MapButton, SourcesButton, HistoryButton), viewHint);
         DockPanel.SetDock(tabs, Dock.Top); left.Children.Add(tabs);
         left.Children.Add(new ScrollViewer { Content = cards, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }); grid.Children.Add(left);
         overview.Content = Retro.Col(Retro.Label("ATTACK MAP / 手口と確認項目の対応図", Retro.Cyan, 15), mapHint,
@@ -88,10 +89,11 @@ internal sealed class SecurityRadarWindow : RetroWindow
         RefreshButton.IsEnabled = !session.Busy; CancelButton.IsEnabled = session.Busy;
         ReferenceButton.IsEnabled = !session.Busy && RadarKnowledge.Persistence.All(s => session.Current.TryGetValue(s, out var r) && r.Coverage == RadarCoverage.Complete);
         var missing = session.Current.Values.Count(r => r.Coverage != RadarCoverage.Complete);
-        status.Text = session.Busy ? $"READING / {session.Current.Count} / 9 sources   ·   各取得は最大20秒" : session.Current.Count == 0 ? "NOT SCANNED / 手動で読み取りを開始" : $"SNAPSHOT / {session.Current.Count} sources   ·   未完了 {missing}   ·   表示は取得時点の状態";
+        int sourceCount = Enum.GetValues<RadarSource>().Length;
+        status.Text = session.Busy ? $"READING / {session.Current.Count} / {sourceCount} sources   ·   各取得は最大20秒" : session.Current.Count == 0 ? "NOT SCANNED / 手動で読み取りを開始" : $"SNAPSHOT / {session.Current.Count} sources   ·   未完了 {missing}   ·   表示は取得時点の状態";
         referenceStatus.Text = session.Reference.Count == 0 ? "比較基準なし / 初回一覧は不審判定しません。基準はメモリ内のみ。" : "比較基準: " + session.Reference.Values.Min(r => r.CapturedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + " / 再設定まで固定・アプリ終了で破棄";
         cards.Children.Clear();
-        int count = sourceView ? 9 : RadarKnowledge.Techniques.Length;
+        int count = sourceView ? sourceCount : RadarKnowledge.Techniques.Length;
         for (int i = 0; i < count; i++)
         {
             int index = i;
@@ -119,6 +121,9 @@ internal sealed class SecurityRadarWindow : RetroWindow
         {
             var technique = RadarKnowledge.Techniques[selected];
             text.AppendLine(technique.Id + " / " + technique.Title).AppendLine(technique.Explanation).AppendLine("公式資料: " + technique.Url).AppendLine();
+            if (sources.Contains(RadarSource.Tcp) && sources.Contains(RadarSource.Udp))
+                text.AppendLine(RadarAnalysis.NetworkOwnerSummary(session.Current.GetValueOrDefault(RadarSource.Tcp),
+                    session.Current.GetValueOrDefault(RadarSource.Udp))).AppendLine();
         }
         foreach (var source in sources)
         {
@@ -130,7 +135,14 @@ internal sealed class SecurityRadarWindow : RetroWindow
                 text.AppendLine("取得: " + read.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz")).AppendLine(RadarKnowledge.Coverage(read.Coverage)).AppendLine(read.Note).AppendLine();
                 if (session.Reference.TryGetValue(source, out var reference))
                     foreach (var change in RadarAnalysis.Compare(reference, read)) text.AppendLine(change.Kind + " / " + change.Name).AppendLine("  BEFORE: " + change.Before).AppendLine("  AFTER: " + change.After).AppendLine();
-                foreach (var row in read.Rows) text.AppendLine(row.Label).AppendLine("  " + row.Value).AppendLine();
+                if (source == RadarSource.DefenderHistory)
+                {
+                    text.AppendLine("照合範囲: 検出時刻の前後5分。現在の一覧で同名の候補を示します。同じプロセス実体、当時の通信、検出原因を確認したものではありません。").AppendLine();
+                    foreach (var row in read.Rows)
+                        text.AppendLine(DefenderHistoryEvidence.Describe(row, session.Current.GetValueOrDefault(RadarSource.Tcp), session.Current.GetValueOrDefault(RadarSource.Udp)));
+                }
+                else
+                    foreach (var row in read.Rows) text.AppendLine(row.Label).AppendLine("  " + row.Value).AppendLine();
             }
             text.AppendLine();
         }
@@ -182,15 +194,18 @@ internal sealed class DemoRadarProbe : IRadarProbe
 {
     public Task<RadarRead> ReadAsync(RadarSource source, CancellationToken cancellation)
     {
+        var now = DateTimeOffset.Now;
         var rows = source switch
         {
             RadarSource.Defender => new[] { "AMServiceEnabled", "AntivirusEnabled", "RealTimeProtectionEnabled", "BehaviorMonitorEnabled", "IsTamperProtected" }.Select(k => new RadarRow(k, k, "True")).Append(new("AMRunningMode", "AMRunningMode", "Normal")).ToArray(),
             RadarSource.Firewall => new[] { "Domain", "Private", "Public" }.Select(k => new RadarRow(k, k, "True")).ToArray(),
             RadarSource.Authentication => [],
-            RadarSource.Tcp => [new RadarRow("1", "Example browser / PID 100 / Established", "[192.0.2.10]:51000 -> [203.0.113.20]:443")],
-            RadarSource.Udp => [new RadarRow("1", "Example local service / PID 101", "[127.0.0.1]:5353 / UDP endpoint")],
+            RadarSource.DefenderHistory => [new RadarRow("1", "Demo.Sample（架空）", @"C:\Demo\Example browser.exe", RecordedAt: now, DetectedAt: now.AddMinutes(-1))],
+            RadarSource.Tcp => [new RadarRow("1", "Example browser / PID 100 / Established", "[192.0.2.10]:51000 -> [203.0.113.20]:443", new(100, "Example browser"))],
+            RadarSource.Udp => [new RadarRow("1", "Example local service / PID 101", "[127.0.0.1]:5353 / UDP endpoint", new(101, "Example local service")),
+                new RadarRow("2", "Example browser / PID 100", "[192.0.2.10]:51001 / UDP endpoint", new(100, "Example browser"))],
             _ => [new RadarRow("demo", "Example startup entry", "C:\\Example\\Sample.exe / illustrative only")]
         };
-        return Task.FromResult(new RadarRead(source, cancellation.IsCancellationRequested ? RadarCoverage.Cancelled : RadarCoverage.Complete, DateTimeOffset.Now, "DEMO / 架空のデータ", rows));
+        return Task.FromResult(new RadarRead(source, cancellation.IsCancellationRequested ? RadarCoverage.Cancelled : RadarCoverage.Complete, now, "DEMO / 架空のデータ", rows));
     }
 }

@@ -5,10 +5,11 @@ using System.Text.Json;
 
 namespace TokuControl;
 
-internal enum RadarSource { Defender, Firewall, RunKeys, StartupFolders, Services, ScheduledTasks, Authentication, Tcp, Udp }
+internal enum RadarSource { Defender, Firewall, RunKeys, StartupFolders, Services, ScheduledTasks, Authentication, Tcp, Udp, DefenderHistory }
 internal enum RadarCoverage { Complete, Partial, Unavailable, Cancelled }
 internal enum RadarSignal { Observed, Review, Unknown, NotCompared }
-internal sealed record RadarRow(string Key, string Label, string Value);
+internal sealed record RadarOwner(int Pid, string? Name);
+internal sealed record RadarRow(string Key, string Label, string Value, RadarOwner? Owner = null, DateTimeOffset? RecordedAt = null, DateTimeOffset? DetectedAt = null);
 internal sealed record RadarRead(RadarSource Source, RadarCoverage Coverage, DateTimeOffset CapturedAt, string Note, RadarRow[] Rows);
 internal sealed record RadarAssessment(RadarSignal Signal, string Summary, string Explanation);
 internal sealed record RadarChange(string Kind, string Name, string Before, string After);
@@ -32,7 +33,8 @@ internal static class RadarKnowledge
         RadarSource.Defender => "Windows Defender", RadarSource.Firewall => "Windows Firewall",
         RadarSource.RunKeys => "Run / RunOnce", RadarSource.StartupFolders => "Startup folders",
         RadarSource.Services => "Services", RadarSource.ScheduledTasks => "Scheduled tasks",
-        RadarSource.Authentication => "Authentication / 24h", RadarSource.Tcp => "TCP connections", _ => "UDP endpoints"
+        RadarSource.Authentication => "Authentication / 24h", RadarSource.Tcp => "TCP connections", RadarSource.Udp => "UDP endpoints",
+        RadarSource.DefenderHistory => "Defender 検出履歴 / 24h", _ => throw new ArgumentOutOfRangeException(nameof(source))
     };
     public static string NextCheck(RadarSource source, RadarSignal signal)
     {
@@ -45,6 +47,7 @@ internal static class RadarKnowledge
             RadarSource.Services => "「サービス」のプロパティで実行パス・起動方式・実行アカウントを確認し、そのサービスを登録したソフトの設定と照合する。",
             RadarSource.ScheduledTasks => "タスク スケジューラで同じフォルダーのタスクを探し、「操作」の内容を作成元のソフトと照合する。「プログラムの開始」ならパスと引数を確認する。",
             RadarSource.Authentication => "4625 はログオン失敗。時刻・アカウント・ログオン種別を自分の操作と照合する。4624 の種別10はリモート対話ログオン。心当たりがなければ、その時間帯のリモート利用を確認する。1102 はセキュリティ監査ログの消去。自分や管理者がその時刻に消去したか確認する。",
+            RadarSource.DefenderHistory => "Windows セキュリティの「保護の履歴」で検出名・時刻・対処結果を照合する。通信一覧は今回の手動取得時点の観測。検出時の通信履歴や、その後の対処結果は取得していません。",
             RadarSource.Tcp => "接続先と状態を読み、PID とプロセス名をタスク マネージャーの「詳細」で照合する。自分で開いたアプリを通常終了して READ / REFRESH で変化を確認する。海外IPへの接続だけで攻撃と判断しない。",
             RadarSource.Udp => "UDP の待受ポートと PID を確認し、所有プロセスをタスク マネージャーで照合する。通信相手や転送内容はこの一覧では分からない。",
             _ => "取得元と確認できた範囲を確認する。"
@@ -67,6 +70,38 @@ internal static class RadarKnowledge
 
 internal static class RadarAnalysis
 {
+    public static string NetworkOwnerSummary(RadarRead? tcp, RadarRead? udp)
+    {
+        static string Scope(RadarRead? read) => read == null ? "未取得" :
+            $"{RadarKnowledge.Coverage(read.Coverage)} {read.CapturedAt.ToLocalTime():HH:mm:ss}";
+        var text = new StringBuilder("TCP・UDP の所有プロセス照合").AppendLine()
+            .AppendLine($"TCP: {Scope(tcp)} / UDP: {Scope(udp)}");
+        if (tcp?.Coverage != RadarCoverage.Complete || udp?.Coverage != RadarCoverage.Complete)
+            return text.Append("照合保留。両方の一覧を取得した後に照合できます。").ToString();
+
+        var rows = tcp.Rows.Select(row => (row.Owner, Tcp: true))
+            .Concat(udp.Rows.Select(row => (row.Owner, Tcp: false))).ToArray();
+        int unidentified = rows.Count(r => r.Owner is not { Pid: > 0 } || string.IsNullOrWhiteSpace(r.Owner.Name));
+        int conflicts = 0, matches = 0;
+        const int displayLimit = 20;
+        foreach (var group in rows.Where(r => r.Owner is { Pid: > 0 }).GroupBy(r => r.Owner!.Pid).OrderBy(g => g.Key))
+        {
+            int tcpCount = group.Count(r => r.Tcp), udpCount = group.Count() - tcpCount;
+            if (tcpCount == 0 || udpCount == 0) continue;
+            var names = group.Select(r => r.Owner!.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (names.Length > 1) { conflicts++; continue; }
+            if (group.Any(r => string.IsNullOrWhiteSpace(r.Owner!.Name))) continue;
+            matches++;
+            if (matches <= displayLimit)
+                text.AppendLine($"PID {group.Key} / {names[0]}　TCP {tcpCount} 行・UDP {udpCount} 行");
+        }
+        if (matches == 0) text.AppendLine("照合できた行に PID・名前の一致なし。");
+        if (matches > displayLimit) text.AppendLine($"一致 {matches} 件のうち先頭 {displayLimit} 件を表示。");
+        if (conflicts > 0) text.AppendLine($"同じ PID で名前が異なるため除外: {conflicts} 件。");
+        if (unidentified > 0) text.AppendLine($"有効な PID または名前が得られなかった行: {unidentified} 件。");
+        return text.Append("TCP と UDP は別々の時点の観測です。PID は再利用されます。一致だけでは同じプロセスの実体、通信相手、侵入の有無は確定できません。").ToString();
+    }
+
     public static RadarChange[] Compare(RadarRead reference, RadarRead current)
     {
         // Never turn missing or truncated observations into removals.
@@ -81,6 +116,10 @@ internal static class RadarAnalysis
     }
     public static RadarAssessment Assess(RadarRead read, RadarRead? reference = null)
     {
+        if (read.Source == RadarSource.DefenderHistory && (read.Coverage == RadarCoverage.Complete || (read.Coverage == RadarCoverage.Partial && read.Rows.Length > 0)))
+            return new(read.Rows.Length > 0 ? RadarSignal.Review : RadarSignal.Observed,
+                $"読み取れた検出記録 {read.Rows.Length} 件 / {RadarKnowledge.Coverage(read.Coverage)}",
+                "記録時刻が直近24時間の Defender イベント1116。ログの保持範囲・現在の感染や保護状態は分かりません。");
         if (read.Coverage != RadarCoverage.Complete) return new(RadarSignal.Unknown, RadarKnowledge.Coverage(read.Coverage), read.Note + " 取得できた行があっても全体の安全性や削除は判断できません。");
         if (RadarKnowledge.Persistence.Contains(read.Source))
         {
@@ -222,7 +261,11 @@ internal sealed class WindowsRadarProbe : IRadarProbe
         if (!Enum.GetNames<RadarCoverage>().Contains(coverageText) || !Enum.TryParse<RadarCoverage>(coverageText, out var coverage)) throw new InvalidDataException("Coverage");
         var time = root.GetProperty("CapturedAt").GetDateTimeOffset();
         var note = root.GetProperty("Note").GetString() ?? "";
-        var rows = root.GetProperty("Rows").EnumerateArray().Select(r => new RadarRow(r.GetProperty("Key").GetString()!, r.GetProperty("Label").GetString()!, r.GetProperty("Value").GetString()!)).ToArray();
+        var rows = root.GetProperty("Rows").EnumerateArray().Select(r => new RadarRow(
+            r.GetProperty("Key").GetString()!, r.GetProperty("Label").GetString()!, r.GetProperty("Value").GetString()!,
+            r.TryGetProperty("Owner", out var owner) ? owner.Deserialize<RadarOwner>() : null,
+            r.TryGetProperty("RecordedAt", out var recorded) ? recorded.GetDateTimeOffset() : null,
+            r.TryGetProperty("DetectedAt", out var detected) ? detected.GetDateTimeOffset() : null)).ToArray();
         if (rows.Length > 2000 || rows.Any(r => string.IsNullOrEmpty(r.Key) || r.Label == null || r.Value == null) || rows.Select(r => r.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count() != rows.Length) throw new InvalidDataException("Rows");
         return new(source, coverage, time, note, rows);
     }

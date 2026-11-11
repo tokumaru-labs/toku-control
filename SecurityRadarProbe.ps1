@@ -8,10 +8,16 @@ $state = 'Complete'
 $note = ''
 $limit = 2000
 $rowChars = 0
-function Row([string]$key, [string]$label, [string]$value) {
-    if ($rows.Count -ge $limit + 1 -or $script:rowChars + $key.Length + $label.Length + $value.Length -gt 1048576) { Partial 'Result size limit reached; incomplete collection.'; return }
-    $script:rowChars += $key.Length + $label.Length + $value.Length
-    $rows.Add([pscustomobject]@{ Key = $key; Label = $label; Value = $value })
+function Row([string]$key, [string]$label, [string]$value, $owner = $null, [string]$recordedAt, [string]$detectedAt) {
+    $length = $key.Length + $label.Length + $value.Length + $recordedAt.Length + $detectedAt.Length
+    if ($null -ne $owner) { $length += $owner.Name.Length }
+    if ($rows.Count -ge $limit + 1 -or $script:rowChars + $length -gt 1048576) { Partial 'Result size limit reached; incomplete collection.'; return }
+    $script:rowChars += $length
+    $row = @{ Key = $key; Label = $label; Value = $value }
+    if ($null -ne $owner) { $row.Owner = $owner }
+    if ($recordedAt) { $row.RecordedAt = $recordedAt }
+    if ($detectedAt) { $row.DetectedAt = $detectedAt }
+    $rows.Add([pscustomobject]$row)
 }
 function Partial([string]$reason) { $script:state = 'Partial'; $script:note = $reason }
 function Digest([string]$text) {
@@ -19,11 +25,31 @@ function Digest([string]$text) {
     try { return [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($text))).Replace('-', '') }
     finally { $hash.Dispose() }
 }
-function ProcessLabel([int]$processId) {
+function ProcessName([int]$processId) {
     try {
         $p = [Diagnostics.Process]::GetProcessById($processId)
         try { return $p.ProcessName } finally { $p.Dispose() }
-    } catch { return 'unavailable / exited or access denied' }
+    } catch { return $null }
+}
+function NetworkRow([int]$index, [int]$processId, [string]$suffix, [string]$value) {
+    $name = ProcessName $processId
+    $label = if ($name) { $name } else { 'unavailable / exited or access denied' }
+    Row ([string]$index) ($label + ' / PID ' + $processId + $suffix) $value @{ Pid = $processId; Name = $name }
+}
+function DetectionRow($record, [int]$index) {
+    $recorded = $null
+    if ($null -ne $record.TimeCreated) { $recorded = ([DateTimeOffset]$record.TimeCreated).ToString('o') }
+    $fields = @{}
+    try {
+        $xml = [xml]$record.ToXml()
+        foreach ($field in $xml.Event.EventData.Data) { $fields[[string]$field.Name] = [string]$field.'#text' }
+    } catch { Partial 'Some event details could not be read.' }
+    $detected = $null
+    $raw = $fields['Detection Time']
+    $parsed = [DateTimeOffset]::MinValue
+    if ($raw -match '^\d{4}-\d\d-\d\dT.+(Z|[+-]\d\d:\d\d)$' -and [DateTimeOffset]::TryParse($raw, [cultureinfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) { $detected = $parsed.ToString('o') }
+    if (-not $recorded -or -not $detected -or -not $fields['Threat Name'] -or -not $fields['Process Name']) { Partial 'Some event times or fields are unavailable.' }
+    Row ([string]$index) $fields['Threat Name'] $fields['Process Name'] $null $recorded $detected
 }
 function Read-LocalAttributes([string]$path) { return [IO.File]::GetAttributes($path) }
 function Test-LocalStartupPath([string]$path) {
@@ -140,13 +166,38 @@ try {
             }
             $note = 'Window: ' + $start.ToString('o') + ' to ' + $end.ToString('o') + '. Latest 500 events. Audit policy and retention are not verified; zero results do not imply no attacks.'
         }
+        'DefenderHistory' {
+            $limit = 50
+            $log = 'Microsoft-Windows-Windows Defender/Operational'
+            $channel = Microsoft.PowerShell.Diagnostics\Get-WinEvent -ListLog $log
+            try { if (-not $channel.IsEnabled) { $state = 'Unavailable'; $note = 'Defender Operational log is disabled.'; break } } finally { $channel.Dispose() }
+            $end = [DateTimeOffset]::UtcNow
+            $filter = @{ LogName = $log; ProviderName = 'Microsoft-Windows-Windows Defender'; Id = 1116; StartTime = $end.AddHours(-24).UtcDateTime; EndTime = $end.UtcDateTime }
+            $seen = 0
+            try {
+                Microsoft.PowerShell.Diagnostics\Get-WinEvent -FilterHashtable $filter -MaxEvents 51 | ForEach-Object {
+                    $record = $_
+                    try {
+                        $seen++
+                        if ($seen -le $limit) { DetectionRow $record $seen }
+                    } finally { $record.Dispose() }
+                }
+            } catch {
+                if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') {
+                    if ($seen -eq 0) { throw }
+                    Partial ('Event read interrupted: ' + $_.CategoryInfo.Category)
+                }
+            }
+            if ($seen -gt $limit) { Partial ($note + ' Latest 50 shown; result limit reached.') }
+            $note = 'Event 1116 / last 24h by event record time, through ' + $end.ToString('o') + '. Retention unverified. ' + $note
+        }
         'Tcp' {
             $limit = 1000
             $index = 0
             foreach ($connection in @(NetTCPIP\Get-NetTCPConnection | Select-Object -First 1001)) {
                 $index++
                 $processId = [int]$connection.OwningProcess
-                Row ([string]$index) ((ProcessLabel $processId) + ' / PID ' + $processId + ' / ' + $connection.State) ('[' + $connection.LocalAddress + ']:' + $connection.LocalPort + ' -> [' + $connection.RemoteAddress + ']:' + $connection.RemotePort)
+                NetworkRow $index $processId (' / ' + $connection.State) ('[' + $connection.LocalAddress + ']:' + $connection.LocalPort + ' -> [' + $connection.RemoteAddress + ']:' + $connection.RemotePort)
             }
             $note = 'TCP IPv4/IPv6 point-in-time snapshot. No DNS, geolocation, packet capture, reputation lookup or signature validation. PID lookup can race process exit/reuse.'
         }
@@ -156,7 +207,7 @@ try {
             foreach ($endpoint in @(NetTCPIP\Get-NetUDPEndpoint | Select-Object -First 1001)) {
                 $index++
                 $processId = [int]$endpoint.OwningProcess
-                Row ([string]$index) ((ProcessLabel $processId) + ' / PID ' + $processId) ('[' + $endpoint.LocalAddress + ']:' + $endpoint.LocalPort + ' / remote peer unavailable for UDP endpoint snapshot')
+                NetworkRow $index $processId '' ('[' + $endpoint.LocalAddress + ']:' + $endpoint.LocalPort + ' / remote peer unavailable for UDP endpoint snapshot')
             }
             $note = 'Local UDP endpoints only. A bound socket does not prove remote reachability or data transfer.'
         }

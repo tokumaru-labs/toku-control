@@ -42,7 +42,8 @@ internal sealed class QuickGuideWindow : Window
         AddPage("PCを点検", "このPCの保護と通信を確認する",
             ("01  まず1回、状態を読む", "メインの「+ security radar」で READ / REFRESH を押します。SOURCES → Windows Defender または Windows Firewall を選び、取得時刻を見ます。保護がオフなら Windows セキュリティや利用中の対策製品でも状態を確認します。"),
             ("02  気になる項目の根拠を見る", "ATTACK MAP は手口と確認項目の対応図です。項目を押して「次の確認」へ。OBSERVED は取得した範囲、REVIEW は照合が必要な項目、UNKNOWN は権限不足などで確認できなかった範囲を示します。"),
-            ("03  見覚えのない通信やログオンがあったら", "TCP connections ではアプリ名と PID を見ます。自分が開いたブラウザーを通常終了して再取得すると、接続の変化を比べられます。Authentication / 24h のログオン失敗は、まず時刻とアカウントを自分の操作と照合します。"));
+            ("03  見覚えのない通信やログオンがあったら", "TCP connections ではアプリ名と PID を見ます。自分が開いたブラウザーを通常終了して再取得すると、接続の変化を比べられます。Authentication / 24h のログオン失敗は、まず時刻とアカウントを自分の操作と照合します。"),
+            ("04  Defender の検出があったら", "「検出履歴」で直近24時間の検出名と時刻を読みます。前後5分に取得した TCP・UDP 一覧の同名候補は、通信元を確定する情報ではありません。Windows セキュリティの「保護の履歴」で対処結果を確認します。"));
         AddPage("前後を比較", "アプリを入れる前後で自動起動の変化を見る",
             ("01  インストール前に基準を作る", "Security Radar で READ / REFRESH。自動起動・サービス・タスクに関する4項目をすべて取得できたら、一覧を確認して SET REFERENCE を押します。"),
             ("02  アプリを入れた後でもう一度読む", "TOKU CONTROL を起動したまま再取得し、SOURCES から Run / RunOnce、Startup folders、Services、Scheduled tasks を選びます。基準はアプリ終了時に消えます。"),
