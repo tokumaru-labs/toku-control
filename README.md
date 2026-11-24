@@ -12,7 +12,9 @@ TOKU CONTROL puts playback volume, output switching, a digital clock, peak
 meters, and Windows system/display information into a compact local console.
 Blue title bars, green LCD digits and adjustable CRT effects are part of the interface.
 
-**[Version 0.4.0 for Windows](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.4.0)** adds Security Radar, local Defender history, optional Autorunsc comparisons, Intel Stream, detachable modules and three rest-clock themes with a 20/5 timer. From v0.3.0, open **+ updates** and choose **YES / UPDATE**.
+**[Version 0.4.1 for Windows](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.4.1)** adds **このアプリについて** (About) beside the guide on the main console. It identifies Tokumaru Labs as the developer and links to the official website. From v0.3.0 or later, open **+ updates** and choose **YES / UPDATE**.
+
+Version 0.4.0 introduced Security Radar, local Defender history, optional Autorunsc comparisons, Intel Stream, detachable modules and three rest-clock themes with a 20/5 timer.
 
 ### Compare startup entries with Autorunsc
 

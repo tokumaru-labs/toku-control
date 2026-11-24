@@ -132,8 +132,9 @@ public sealed partial class ConsoleWindow : RetroWindow
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
         var head = Retro.Col(Retro.Label("HOST: [ LOCAL ]   SCOPE: THIS PC   MODE: STANDBY", Retro.Text, 11), Retro.Label("OS: WINDOWS    PORT: -- / NOT USED    SESSION: 1", Retro.Dim, 11));
         headerGrid.Children.Add(head);
-        var guide = QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Radar);
-        Grid.SetColumn(guide, 1); headerGrid.Children.Add(guide);
+        var help = Retro.Row(QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Radar),
+            Retro.Button("このアプリについて", "開発元と公式サイトを表示", () => AboutWindow.Open(this, preview)));
+        Grid.SetColumn(help, 1); headerGrid.Children.Add(help);
         Grid.SetColumn(topTime, 2); headerGrid.Children.Add(topTime);
         DockPanel.SetDock(headerGrid, Dock.Top); Layout.Children.Add(headerGrid);
         if (preview)

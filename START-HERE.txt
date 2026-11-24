@@ -1,4 +1,4 @@
-TOKU CONTROL v0.4.0 - Tokumaru Labs
+TOKU CONTROL v0.4.1 - Tokumaru Labs
 
 Extract the entire ZIP into a new folder, then run the TOP-LEVEL TokuControl.exe.
 Keep Update.exe, current/ and all other extracted files together.
@@ -11,6 +11,7 @@ Settings are preserved. Personal files must stay outside current/.
 
 Read current/README.md or current/README.ja.md for controls and limitations.
 From 0.3.0 use + updates > YES / UPDATE.
+Choose このアプリについて (About) beside the guide for the developer and official website.
 Security Radar: open + security radar, then READ / REFRESH for a local snapshot.
 Autorunsc: import a saved CSV or choose your own Microsoft Autorunsc 14.3.
 Intel Stream: choose feeds and enable online retrieval to read headlines.

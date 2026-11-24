@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 - 2026-11-24
+
+- The main console's About window (このアプリについて) identifies Tokumaru Labs as the developer, shows the application version and GPL-3.0-only license, and links to the official website.
+
 ## 0.4.0 - 2026-11-24
 
 - Security Radar shows manually collected Windows protection, startup, authentication, network and recent Defender evidence. The optional Autorunsc view compares local startup inventories from CSV or a separately obtained Microsoft Autorunsc 14.3 executable.
