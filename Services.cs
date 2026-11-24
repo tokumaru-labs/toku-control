@@ -210,6 +210,7 @@ public record WindowPosition(double X, double Y, bool Pin, double? Width = null,
 public sealed class Settings
 {
     public bool CheckUpdatesOnStartup { get; set; } = true;
+    public bool ClockMandala { get; set; }
     public bool ClockCodeMotion { get; set; } = true;
     public bool ClockTrace { get; set; }
     public bool Crt { get; set; } = true;

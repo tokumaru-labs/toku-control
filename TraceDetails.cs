@@ -68,7 +68,7 @@ internal sealed class TraceDetails : Grid
     internal void Refresh(HackerRest rest)
     {
         var history = rest.History;
-        int live = rest.Running ? rest.ElapsedSeconds : -1;
+        int live = rest.Running && !rest.Focusing ? rest.ElapsedSeconds : -1;
         if (version == history.Revision && live == previousElapsed) return;
         if (version != history.Revision)
         {
