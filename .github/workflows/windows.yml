@@ -49,6 +49,12 @@ jobs:
           $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-mod-state --module-check-dir artifacts/ci-mod' -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw 'Module window checks failed' }
           if ((Get-Content artifacts/ci-mod/module-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing module report' }
+      - name: Clock wheel, silent breaks and offline Nemumaru growth
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-clock-state --clock-check-dir artifacts/ci-clock' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'Clock checks failed' }
+          if ((Get-Content artifacts/ci-clock/clock-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing clock report' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -59,4 +65,5 @@ jobs:
             artifacts/ci-radar/
             artifacts/ci-intel/
             artifacts/ci-mod/
+            artifacts/ci-clock/
           retention-days: 7

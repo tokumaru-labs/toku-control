@@ -58,23 +58,13 @@ internal sealed class IntelLibrary(string directory)
             return data with { Saved = remove ? others : [a, .. others] };
         });
     }
-    // A per-directory write handle serializes read/modify/replace across processes and login sessions.
-    FileStream WriterLock()
-    {
-        var wait = System.Diagnostics.Stopwatch.StartNew();
-        while (true)
-        {
-            try { return new FileStream(FileName + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-            catch (IOException ex) when ((ex.HResult & 0xFFFF) is 32 or 33 && wait.ElapsedMilliseconds < 400) { Thread.Sleep(10); }
-        }
-    }
     void Update(Func<IntelArchive, IntelArchive?> change)
     {
         var temp = FileName + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
             Directory.CreateDirectory(directory);
-            using var writer = WriterLock();
+            using var writer = ProfileWriteLock.Open(FileName);
             var latest = ReadLatest(); var updated = change(latest);
             if (updated == null) { Adopt(latest); return; }
             var bytes = JsonSerializer.SerializeToUtf8Bytes(updated);

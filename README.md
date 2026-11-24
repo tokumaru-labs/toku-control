@@ -29,7 +29,7 @@ you trust; release assets include a SHA-256 checksum file.
 | Area | What it does |
 | --- | --- |
 | Audio | Master playback volume, mute, device scan and explicit default output switching. Select an output, then press `SET OUTPUT`. |
-| Clock | Large LCD-style hours/minutes, smaller seconds, date and silent 25/50-minute timers. |
+| Clock | LCD time/date, a 5-minute-step duration wheel, countdown bar and a growing Nemumaru hacker room. |
 | Audio meter | Endpoint peak levels, with stereo L/R where supported. This is a peak meter, not a spectrum analyzer or per-app mixer. |
 | System pulse | CPU/RAM history, system-drive capacity use, Windows/build, CPU, RAM, graphics and active monitor details. |
 | Modules | `SHOW ALL`, `GRID` and `RECALL` place the three equal-width modules in a vertical column to the right of the main window. |
@@ -46,6 +46,11 @@ Dragging the main title bar moves only visible, normal modules that overlap the 
 or lie alongside one of its edges within the 12-DIP layout gap at drag start.
 A detached module stays put. Move it back beside the console to reattach it for
 the next drag. `P` / `PIN` keeps a module on top.
+
+Choose 5–120 minutes with the wheel, a vertical swipe or drag, the arrow keys, or a tap above or below the selected time.
+**START** begins a silent break and **RESET** cancels it. The timer continues while the clock window is hidden or closed.
+Completing a break earns at most one growth day per local finish date. The generated room art changes at days 1, 7 and 30.
+Growth is stored locally up to day 365. Exiting the app ends an unfinished timer.
 Closing the main window exits the application; closing a module only closes that module.
 
 Click a Quick Launch button to open its tool normally. For **Command Prompt,

@@ -19,8 +19,9 @@ Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'layout-st
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'update-state') + '"'), '--update-check-dir', ('"' + (Join-Path $tokuResults 'updates') + '"'))
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'radar-state') + '"'), '--radar-check-dir', ('"' + (Join-Path $tokuResults 'radar') + '"'))
 Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'intel-state') + '"'), '--intel-check-dir', ('"' + (Join-Path $tokuResults 'intel') + '"'))
-foreach ($tokuReport in @('service-checks.json', 'native\ui-checks.json', 'preview\ui-checks.json', 'modules\module-checks.json', 'crt\crt-checks.json', 'layout\layout-checks.json', 'updates\update-ui-checks.json', 'radar\radar-ui-checks.json', 'intel\intel-checks.json')) {
+Run-Check @('--preview', '--data-dir', ('"' + (Join-Path $tokuResults 'clock-state') + '"'), '--clock-check-dir', ('"' + (Join-Path $tokuResults 'clock') + '"'))
+foreach ($tokuReport in @('service-checks.json', 'native\ui-checks.json', 'preview\ui-checks.json', 'modules\module-checks.json', 'crt\crt-checks.json', 'layout\layout-checks.json', 'updates\update-ui-checks.json', 'radar\radar-ui-checks.json', 'intel\intel-checks.json', 'clock\clock-checks.json')) {
     $tokuResult = Get-Content -LiteralPath (Join-Path $tokuResults $tokuReport) -Raw | ConvertFrom-Json
     if ($tokuResult.passed -ne $true) { throw "Failed report: $tokuReport" }
 }
-Write-Output 'PASS: service, native UI read-only, simulated UI, module buttons, CRT controls/rendering, module layout, updater, Security Radar, Intel Stream and startup path/bounds checks.'
+Write-Output 'PASS: service, native UI read-only, simulated UI, module buttons, CRT controls/rendering, module layout, updater, Security Radar, Intel Stream, Clock/Nemumaru and startup path/bounds checks.'
