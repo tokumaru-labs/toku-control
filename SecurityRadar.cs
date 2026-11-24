@@ -36,18 +36,28 @@ internal static class RadarKnowledge
     };
     public static string NextCheck(RadarSource source, RadarSignal signal)
     {
-        if (signal == RadarSignal.Unknown)
-            return "取得時刻・理由・確認できた範囲を読む。空欄や取得失敗は未確認のまま扱う。";
-        if (Persistence.Contains(source))
-            return signal == RadarSignal.NotCompared
-                ? "インストール前に初回一覧を確認。4項目が揃ったら SET REFERENCE。同じアプリ起動中に再取得して前後を比較する。"
-                : "差分の名前・パス・引数を、直前のインストールや更新と照合する。心当たりのない追加は実行せず、Windows セキュリティの保護の履歴とスキャンで確認する。";
-        return source switch {
-            RadarSource.Defender or RadarSource.Firewall => "Windows セキュリティで同じ保護状態を確認する。他社製ウイルス対策や組織の管理がある場合は、利用中の製品や管理者に照合する。",
+        string check = source switch
+        {
+            RadarSource.Defender => "Windows セキュリティで使用中の保護プロバイダー、リアルタイム保護、定義ファイルの更新日時を確認する。他社製AVを使用中なら、その製品の保護状態も確かめる。",
+            RadarSource.Firewall => "Windows セキュリティの「ファイアウォールとネットワーク保護」で使用中のプロファイルを確認し、対応する Domain・Private・Public の有効状態を照合する。組織管理の端末では管理方針も確かめる。",
+            RadarSource.RunKeys => "Run / RunOnce の値名と登録コマンドのパス・引数を、最近インストールまたは更新したアプリと照合する。見覚えのないコマンドは実行せず、保護の履歴を確認する。",
+            RadarSource.StartupFolders => "自分用・全ユーザー用のどちらの Startup フォルダーかを確かめ、ファイル名を最近追加したアプリと照合する。ショートカットのハッシュが示すのはショートカット自体の内容。",
+            RadarSource.Services => "「サービス」のプロパティで実行パス・起動方式・実行アカウントを確認し、そのサービスを登録したソフトの設定と照合する。",
+            RadarSource.ScheduledTasks => "タスク スケジューラで同じフォルダーのタスクを探し、「操作」の内容を作成元のソフトと照合する。「プログラムの開始」ならパスと引数を確認する。",
             RadarSource.Authentication => "4625 はログオン失敗。時刻・アカウント・ログオン種別を自分の操作と照合する。4624 の種別10はリモート対話ログオン。心当たりがなければ、その時間帯のリモート利用を確認する。1102 はセキュリティ監査ログの消去。自分や管理者がその時刻に消去したか確認する。",
-            RadarSource.Tcp => "プロセス名・PID・接続状態・相手先を読む。使っているアプリを通常終了し、READ / REFRESH で変化を見る。海外IPや接続の存在だけで攻撃と判断しない。",
-            _ => "UDP はこのPCの待受だけを表示する。所有プロセスをタスク マネージャーで照合する。通信相手や転送内容はここでは分からない。"
+            RadarSource.Tcp => "接続先と状態を読み、PID とプロセス名をタスク マネージャーの「詳細」で照合する。自分で開いたアプリを通常終了して READ / REFRESH で変化を確認する。海外IPへの接続だけで攻撃と判断しない。",
+            RadarSource.Udp => "UDP の待受ポートと PID を確認し、所有プロセスをタスク マネージャーで照合する。通信相手や転送内容はこの一覧では分からない。",
+            _ => "取得元と確認できた範囲を確認する。"
         };
+        string context = signal switch
+        {
+            RadarSignal.Unknown => "取得できなかった範囲は未確認。取得済みの行があれば、取得時刻・理由と合わせて読む。",
+            RadarSignal.NotCompared => "初回一覧は未比較。永続化の4情報源をすべて取得して内容を確認したら、SET REFERENCE で基準に固定し、同じ起動中に再取得して比べる。",
+            RadarSignal.Review when Persistence.Contains(source) => "BEFORE / AFTER を直前のインストールや更新と照合する。構成の変更だけでは侵入は確定しない。",
+            RadarSignal.Review => "要確認となった項目を、自分の操作や端末の管理方針と照合する。",
+            _ => ""
+        };
+        return context.Length == 0 ? check : context + Environment.NewLine + check;
     }
     public static string Coverage(RadarCoverage value) => value switch
     { RadarCoverage.Complete => "取得済み / 対象範囲内", RadarCoverage.Partial => "一部のみ取得", RadarCoverage.Cancelled => "中止", _ => "取得できず" };
