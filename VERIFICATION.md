@@ -3,7 +3,7 @@
 This project has automated checks plus local Windows desktop checks. Passing
 them is not a claim that every audio device, display layout or Windows build is supported.
 
-`verify.ps1` runs seven reports:
+`verify.ps1` checks the PowerShell probe fixtures and the following ten desktop reports.
 
 1. Service checks: settings, bounded log, simulated audio, output-routing behavior and launcher requests/cancellation.
 2. Native UI capture: real audio/system reads without changing OS audio or drive state.
@@ -12,6 +12,13 @@ them is not a claim that every audio device, display layout or Windows build is 
 5. CRT checks: individual rendered pixel changes, RAW/restore/dim, state persistence.
 6. Layout checks: vertical-stack geometry, restore/persistence, and title drags with attached and detached modules.
 7. Update dialog: offer/Yes button layout, Later without downloading, explicit Yes wiring and persisted startup-check preference.
+8. Security Radar: manual navigation, evidence and reference snapshots, Defender history and local Autorunsc CSV comparisons.
+9. Intel Stream: opt-in retrieval, fixture headlines, offline history and bookmarks.
+10. Rest clock: duration controls, themes, earned growth and the silent 20/5 timer.
+
+For a 0.4.0 release, use the public 0.3.0 user ZIP as the input to
+`verify-update.ps1`. Run against the final local candidate feed in an empty
+test directory and check the resulting version, native restart and retained settings.
 
 The service checks also exercise the production update session with controlled
 backends: explicit consent, duplicate requests, cancellation, network failure,

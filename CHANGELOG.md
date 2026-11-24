@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-11-24
+
+- Security Radar shows manually collected Windows protection, startup, authentication, network and recent Defender evidence. The optional Autorunsc view compares local startup inventories from CSV or a separately obtained Microsoft Autorunsc 14.3 executable.
+- Intel Stream offers opt-in news feeds with offline history and bookmarks.
+- The rest clock adds the Nemumaru room, TRACE, a mandala and an optional silent 20/5 Pomodoro cycle. Detached modules stay in place when the console moves.
+- Users of 0.3.0 can install the update from **+ updates**. The portable Windows x64 ZIP also supports fresh installations.
+
 ## 0.3.0 - 2026-10-27
 
 - New version available notification with Yes / Update, Later, download progress and cancellation. Accepted updates are verified, applied and restarted with settings preserved.

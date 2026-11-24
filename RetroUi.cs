@@ -200,7 +200,7 @@ public sealed class CrtOverlay : FrameworkElement
     public void Apply(Settings value) { settings = value; InvalidateVisual(); }
     protected override void OnRender(DrawingContext dc)
     {
-        if (!settings.Crt) return;
+        if (!settings.Crt || (settings.Scanline == 0 && settings.Noise == 0 && settings.Vignette == 0)) return;
         double scanline = .6 * Math.Pow(settings.Scanline / .18, 2);
         var lines = new Pen(new SolidColorBrush(Color.FromArgb((byte)(scanline * 255), 0, 0, 0)), 1); lines.Freeze();
         for (double y = 0; y < ActualHeight; y += 3) dc.DrawLine(lines, new Point(0, y), new Point(ActualWidth, y));

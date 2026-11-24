@@ -25,12 +25,21 @@ public sealed partial class ConsoleWindow
             await Task.Delay(350);
             ShowModule("crt");
             var probe = new RetroWindow("crt-probe", "CRT EFFECT CHECK", 390, 210);
-            probe.Layout.Children.Add(Retro.Col(
+            var sample = Retro.Col(
                 Retro.Label("TOKU CONTROL", Retro.Green, 22),
                 Retro.Label("RGB  /  0123456789", Retro.Cyan, 18),
                 Retro.Label("PHOSPHOR / LOCAL DISPLAY", Retro.Text, 12),
-                new Border { Height = 18, Margin = new Thickness(6), Background = Retro.Title }));
-            probe.Footer.Text = "STATIC REFERENCE / NO CHANGING VALUES";
+                new Border { Height = 18, Margin = new Thickness(6), Background = Retro.Title });
+            // Rasterize the reference just once. Font rasterization can change a
+            // few glyph-edge pixels after WPF renders the layout through a shader.
+            sample.Background = Retro.Background;
+            sample.Measure(new Size(384, 200));
+            sample.Arrange(new Rect(0, 0, 384, 200));
+            var source = new RenderTargetBitmap(384, 200, 96, 96, PixelFormats.Pbgra32);
+            source.Render(sample);
+            source.Freeze();
+            probe.Layout.Children.Clear();
+            probe.Layout.Children.Add(new Image { Source = source, Stretch = Stretch.None });
             modules.Add("crt-probe", probe);
             probe.Show();
 
