@@ -21,6 +21,7 @@ public static class Program
     public static int Main(string[] args)
     {
         Velopack.VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
+        if (args.Contains("--radar-self-test") || args.Contains("--radar-live-check")) return SecurityRadarChecks.RunCli(args, args.Contains("--radar-live-check"));
         if (args.Contains("--self-test")) return Checks.Run(args);
         bool preview = args.Contains("--preview");
         string? Option(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
@@ -32,12 +33,20 @@ public static class Program
         if (gallery != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var updateCheck = Option("--update-check-dir");
         if (updateCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var radarCheck = Option("--radar-check-dir");
+        if (radarCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var intelCheck = Option("--intel-check-dir") ?? Option("--intel-live-check-dir");
+        if (intelCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var clockCheck = Option("--clock-check-dir");
+        if (clockCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Retro.Install(app);
         var data = Option("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TokumaruLabs", "TokuControl");
-        var store = new SettingsStore(data);
-        var main = new ConsoleWindow(store, preview, !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir"));
+        var clockTime = clockCheck == null ? null : new RestCheckTime();
+        var store = new SettingsStore(clockCheck == null ? data : Path.Combine(data, "clock-check-" + Guid.NewGuid().ToString("N")));
+        var main = new ConsoleWindow(store, preview, clockCheck == null && intelCheck == null && !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"), clockTime);
         app.MainWindow = main;
+        if (clockCheck != null) main.Loaded += async (_, _) => await main.CheckRestClock(clockCheck, clockTime!);
         var qa = Option("--capture-dir");
         if (qa != null) main.Loaded += async (_, _) => await main.CaptureChecks(qa);
         var moduleCheck = Option("--module-check-dir");
@@ -46,6 +55,9 @@ public static class Program
         if (layoutCheck != null) main.Loaded += async (_, _) => await main.LayoutChecks(layoutCheck);
         if (gallery != null) main.Loaded += async (_, _) => await main.CaptureGallery(gallery);
         if (updateCheck != null) main.Loaded += async (_, _) => await main.CaptureUpdateChecks(updateCheck);
+        if (radarCheck != null) main.Loaded += async (_, _) => await main.CaptureRadarChecks(radarCheck);
+        if (intelCheck != null) main.Loaded += async (_, _) => await main.CaptureIntelChecks(intelCheck, args.Contains("--intel-live-check-dir"));
+        else if (args.Contains("--open-intel")) main.Loaded += (_, _) => main.OpenIntel();
         return app.Run(main);
     }
 }
@@ -63,6 +75,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     readonly SystemProbe system = new();
     readonly RingLog logs = new();
     readonly Dictionary<string, RetroWindow> modules = new();
+    readonly List<(string Key, string Label, Button Button)> moduleButtons = [];
     WindowGroupDrag? groupDrag;
     readonly Dictionary<string, Border> panels = new();
     readonly Dictionary<string, Button> nav = new();
@@ -96,8 +109,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     AudioState state = new(false, 0, false, "");
     SegmentClock? clock;
     TextBlock? clockDate;
-    TextBlock? timerText;
-    DateTimeOffset? timerEnd;
+    readonly HackerRest rest;
     bool updatingVolume, logPaused, shuttingDown, driveBusy, outputBusy, closeAfterSwitch;
     DateTime lastVolumeChange;
     bool volumePending;
@@ -105,18 +117,24 @@ public sealed partial class ConsoleWindow : RetroWindow
     public long PeakSamples { get; private set; }
     public long SystemSamples { get; private set; }
 
-    public ConsoleWindow(SettingsStore store, bool preview, bool enableUpdates = true) : base("main", "TOKU CONTROL v" + GithubUpdates.AppVersion + " -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
+    public ConsoleWindow(SettingsStore store, bool preview, bool enableUpdates = true, TimeProvider? timerTime = null) : base("main", "TOKU CONTROL v" + GithubUpdates.AppVersion + " -- LOCAL SYSTEM CONSOLE --", 1080, 740, true)
     {
         this.store = store; this.preview = preview; settings = store.Load();
+        rest = new HackerRest(new HackerJournal(Path.Combine(store.DirectoryPath, preview ? "nemumaru-preview" : "nemumaru")), timerTime ?? TimeProvider.System);
+        rest.Load();
         InitializeUpdates(enableUpdates);
         routes = preview ? new PreviewOutputRoutes() : new WindowsOutputRoutes();
         outputSwitcher = new(routes);
         audio = preview ? new PreviewAudio((PreviewOutputRoutes)routes) : new CoreAudio();
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         var headerGrid = new Grid { Margin = new Thickness(9, 5, 9, 6) };
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition()); headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition()); headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
         var head = Retro.Col(Retro.Label("HOST: [ LOCAL ]   SCOPE: THIS PC   MODE: STANDBY", Retro.Text, 11), Retro.Label("OS: WINDOWS    PORT: -- / NOT USED    SESSION: 1", Retro.Dim, 11));
-        headerGrid.Children.Add(head); Grid.SetColumn(topTime, 1); headerGrid.Children.Add(topTime);
+        headerGrid.Children.Add(head);
+        var guide = QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Radar);
+        Grid.SetColumn(guide, 1); headerGrid.Children.Add(guide);
+        Grid.SetColumn(topTime, 2); headerGrid.Children.Add(topTime);
         DockPanel.SetDock(headerGrid, Dock.Top); Layout.Children.Add(headerGrid);
         if (preview)
         {
@@ -164,11 +182,20 @@ public sealed partial class ConsoleWindow : RetroWindow
         Closing += (_, e) =>
         {
             if (outputBusy) { e.Cancel = true; closeAfterSwitch = true; Footer.Text = "WAIT / FINISHING OUTPUT SWITCH"; return; }
-            if (shuttingDown) return; shuttingDown = true;
+            if (shuttingDown) return;
+            if (!rest.PrepareToExit() && MessageBox.Show(this,
+                "完了した休憩を保存できません。未保存のまま終了しますか？\n「いいえ」で時計に戻り、再保存できます。",
+                "ねむまる / 未保存の休憩", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                e.Cancel = true; ShowModule("clock"); Tick(); return;
+            }
+            shuttingDown = true;
             groupDrag?.Dispose(); groupDrag = null;
             slowTimer.Stop(); audioTimer.Stop(); peakTimer.Stop(); crtSaveTimer.Stop();
             settings.Windows["main"] = WindowPlacement.Read(this);
             foreach (var window in modules.Values.ToArray()) window.Close();
+            radarWindow?.Close();
+            intelWindow?.Close();
             audio.Dispose(); routes.Dispose(); var error = store.Save(settings);
             if (error != null) MessageBox.Show(error + "\n" + store.FilePath, "TOKU CONTROL", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
@@ -189,21 +216,28 @@ public sealed partial class ConsoleWindow : RetroWindow
     Border BuildNavigation()
     {
         var p = new StackPanel { Margin = new Thickness(4) };
-        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
+        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("security", "security radar"), ("intel", "intel stream"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
         {
-            var b = Retro.Button("+ " + name, name + " を表示", () => SelectSection(key));
+            var b = key switch
+            {
+                "clock" => ModuleButton("clock", "+ " + name),
+                "settings" => ModuleButton("crt", "+ " + name),
+                _ => Retro.Button("+ " + name, key == "modules" ? "モジュール操作を表示／もう一度でメイン画面に戻る" : name + " を表示", () => SelectSection(key))
+            };
             b.HorizontalContentAlignment = HorizontalAlignment.Left; b.Margin = new Thickness(0, 2, 0, 2); b.BorderThickness = new Thickness(0); b.Height = 29;
             nav.Add(key, b); p.Children.Add(b);
         }
         p.Children.Add(Retro.Label("──────────────", Retro.Dim, 10));
         p.Children.Add(Retro.Label("[ LOCAL BUS ]\nNO TELEMETRY\n\nUPDATES / OPTIONAL", Retro.Dim, 9));
         nav["local"].Background = Retro.Title;
-        return new Border { BorderBrush = Retro.Border, BorderThickness = new Thickness(1), Margin = new Thickness(4), Child = p };
+        return new Border { BorderBrush = Retro.Border, BorderThickness = new Thickness(1), Margin = new Thickness(4), Child = new ScrollViewer { Content = p, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } };
     }
     void SelectSection(string key)
     {
+        if (key == "security") { ShowSecurityRadar(); return; }
+        if (key == "intel") { ShowIntelStream(); return; }
         if (key == "updates") { ShowUpdates(); return; }
-        if (key is "clock" or "settings") { ShowModule(key == "clock" ? "clock" : "crt"); return; }
+        if (key == "modules" && section == key) key = "local";
         section = key;
         foreach (var entry in nav) entry.Value.Background = entry.Key == key ? Retro.Title : Retro.Background;
         foreach (var entry in panels)
@@ -244,7 +278,7 @@ public sealed partial class ConsoleWindow : RetroWindow
         };
         var right = Retro.Col(Retro.Row(Retro.Label("MASTER", Retro.Text, 10), audioValue),
             Retro.Row(AudioButton("UP", "音量を2ポイント上げる", () => SetVolume(state.Volume + .02f)), AudioButton("DOWN", "音量を2ポイント下げる", () => SetVolume(state.Volume - .02f))),
-            Retro.Row(mute, Retro.Button("METER", "実測ピークの小窓を開く", () => ShowModule("meter"))));
+            Retro.Row(mute, ModuleButton("meter", "METER")));
         outputName.TextTrimming = TextTrimming.CharacterEllipsis; outputName.TextWrapping = TextWrapping.NoWrap;
         outputSelect.ToolTip = "出力を選び SET OUTPUT で確定。選ぶだけでは切り替えません";
         AutomationProperties.SetName(outputSelect, "Playback output");
@@ -256,7 +290,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     {
         raw = Retro.Button("RAW / CRT", "CRTの質感をON/OFF", () => { settings.Crt = !settings.Crt; ApplyAll(); Save(); Log("OK", settings.Crt ? "CRT enabled" : "RAW display / CRT disabled"); });
         var p = Retro.Col(Retro.Row(raw, Retro.Button("DIM", "このアプリの発光を弱める", () => { settings.Bloom = .06; ApplyAll(); Save(); Log("OK", "phosphor dimmed"); })),
-            Retro.Row(Retro.Button("CRT SET", "CRTの詳細設定を開く", () => ShowModule("crt")), Retro.Button("RESTORE", "アプリのCRT設定だけ初期値へ戻す", RestoreCrt)),
+            Retro.Row(ModuleButton("crt", "CRT SET"), Retro.Button("RESTORE", "アプリのCRT設定だけ初期値へ戻す", RestoreCrt)),
             Retro.Row(Retro.Button("RECALL", "全小窓を呼び戻して右側に縦積み", () => Arrange(true)), Retro.Button("GRID", "右側で幅と上下端をそろえて縦に整列", () => Arrange(true))),
             Retro.Label("RENDER  / PIXEL ALIGNED\nFX BUS  / WINDOW ONLY\nSOUND   / OFF", Retro.Dim, 10), Retro.Label("[■] LOCAL CONTROL READY", Retro.Green, 10));
         return p;
@@ -303,8 +337,8 @@ public sealed partial class ConsoleWindow : RetroWindow
         return button;
     }
     UIElement BuildModules() => Retro.Col(
-        Retro.Row(Retro.Button("SHOW CLOCK", "時計の独立小窓を表示", () => ShowModule("clock")), Retro.Button("PIN ALL", "自分の小窓だけ最前面固定", () => { foreach (var w in modules.Values) w.Topmost = true; SavePositions(); Log("OK", "modules pinned"); })),
-        Retro.Row(Retro.Button("SPAWN METER", "音量ピークの独立小窓を表示", () => ShowModule("meter")), Retro.Button("UNPIN", "小窓の最前面固定を解除", () => { foreach (var w in modules.Values) w.Topmost = false; SavePositions(); Log("OK", "modules unpinned"); })),
+        Retro.Row(ModuleButton("clock", "SHOW CLOCK"), Retro.Button("PIN ALL", "自分の小窓だけ最前面固定", () => { foreach (var w in modules.Values) w.Topmost = true; SavePositions(); Log("OK", "modules pinned"); })),
+        Retro.Row(ModuleButton("meter", "SPAWN METER"), Retro.Button("UNPIN", "小窓の最前面固定を解除", () => { foreach (var w in modules.Values) w.Topmost = false; SavePositions(); Log("OK", "modules unpinned"); })),
         Retro.Row(Retro.Button("SHOW ALL", "3つの小窓を右側に縦積みして表示", () => Arrange(true)), Retro.Button("HIDE ALL", "小窓を非表示（再表示可能）", () => { foreach (var w in modules.Values) w.Hide(); Log("OK", "modules hidden"); })),
         Retro.Row(Retro.Button("RECALL", "全小窓を呼び戻して右側に縦積み", () => Arrange(true)), Retro.Button("GRID", "右側で幅と上下端をそろえて縦に整列", () => Arrange(true))),
         Retro.Label("CLOCK / AUDIO / CRT\nP = PIN     x = CLOSE", Retro.Dim, 9));
@@ -433,10 +467,11 @@ public sealed partial class ConsoleWindow : RetroWindow
             var p = system.Read(); SystemSamples++;
             UpdateMetric(cpuValue, cpuGraph, p.Cpu); UpdateMetric(ramValue, ramGraph, p.Ram); UpdateMetric(diskValue, diskGraph, p.Disk);
         }
+        rest.Advance(); // A completed timer counts even when its module was hidden or closed.
         if (modules.TryGetValue("clock", out var cw) && cw.IsVisible)
         {
             clock?.SetTime(now); if (clockDate != null) clockDate.Text = now.ToString("yyyy.MM.dd  ddd", CultureInfo.InvariantCulture).ToUpperInvariant();
-            if (timerText != null) timerText.Text = timerEnd == null ? "TIMER / IDLE" : DateTimeOffset.UtcNow >= timerEnd ? "TIMER COMPLETE / SILENT" : "REMAIN / " + (timerEnd.Value - DateTimeOffset.UtcNow).ToString(@"hh\:mm\:ss");
+            RenderRest(cw);
         }
         if (volumePending && DateTime.UtcNow - lastVolumeChange > TimeSpan.FromMilliseconds(700))
         { volumePending = false; Log(preview ? "SIM" : "OK", $"master volume: {Math.Round(state.Volume * 100)}%"); }
@@ -453,34 +488,46 @@ public sealed partial class ConsoleWindow : RetroWindow
     void Save() { var error = store.Save(settings); if (error != null) Log("WARN", error); }
     void SavePositions() { settings.Windows["main"] = WindowPlacement.Read(this); foreach (var w in modules.Values) settings.Windows[w.Key] = WindowPlacement.Read(w); Save(); }
 
-    void RevealModule(RetroWindow window)
+    Button ModuleButton(string key, string label)
     {
-        if (window.WindowState != WindowState.Normal) window.WindowState = WindowState.Normal;
-        window.Show();
-        // Explicit calls keep visible modules beside the console. Startup still
-        // restores saved positions, including deliberate multi-monitor layouts.
-        Arrange(false);
-        window.Activate();
+        var b = Retro.Button(label, "", () => ToggleModule(key));
+        moduleButtons.Add((key, label, b)); SyncModuleButtons(key);
+        return b;
+    }
+    bool ModuleVisible(string key) => modules.TryGetValue(key, out var window) && window.IsVisible && window.WindowState != WindowState.Minimized;
+    void SyncModuleButtons(string key)
+    {
+        bool on = ModuleVisible(key);
+        foreach (var control in moduleButtons.Where(control => control.Key == key))
+        {
+            string indicator = on ? "●" : "○";
+            control.Button.Content = control.Label.StartsWith("+ ", StringComparison.Ordinal)
+                ? indicator + " " + control.Label[2..] : control.Label + " " + indicator;
+            control.Button.ToolTip = key + (on ? " の小窓を隠す" : " の小窓を表示");
+            AutomationProperties.SetItemStatus(control.Button, on ? "ON" : "OFF");
+        }
+    }
+    void ToggleModule(string key)
+    {
+        if (!ModuleVisible(key)) { ShowModule(key); return; }
+        var window = modules[key];
+        settings.Windows[key] = WindowPlacement.Read(window);
+        window.Hide(); Save(); Log("INFO", key + " module hidden");
     }
     void ShowModule(string key, bool reveal = true)
     {
         if (modules.TryGetValue(key, out var existing))
         {
-            if (reveal) RevealModule(existing);
-            else { existing.Show(); WindowPlacement.Place(existing, WindowPlacement.Read(existing)); }
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Show();
+            WindowPlacement.Place(existing, WindowPlacement.Read(existing), keepReachableTitle: true);
+            if (reveal) existing.Activate();
             Log("INFO", key + " module shown"); return;
         }
         RetroWindow w;
         if (key == "clock")
         {
-            w = new("clock", "CLOCK MODULE", 420, 212); clock = new SegmentClock { Width = 336, Height = 76, Margin = new Thickness(5, 6, 5, 2) };
-            clockDate = Retro.Label("", Retro.Green, 12); clockDate.HorizontalAlignment = HorizontalAlignment.Center;
-            timerText = Retro.Label("TIMER / IDLE", Retro.Dim, 10); timerText.HorizontalAlignment = HorizontalAlignment.Center;
-            void Timer(int minutes) { timerEnd = minutes == 0 ? null : DateTimeOffset.UtcNow.AddMinutes(minutes); Tick(); Log("INFO", minutes == 0 ? "timer reset" : $"silent timer set / {minutes} min"); }
-            var clockButtons = Retro.Row(Retro.Button("25 MIN", "25分の無音タイマー", () => Timer(25)), Retro.Button("50 MIN", "50分の無音タイマー", () => Timer(50)), Retro.Button("RESET", "タイマーを解除", () => Timer(0)), Retro.Button("PIN", "時計だけ最前面固定", () => { w.Topmost = !w.Topmost; SavePositions(); }));
-            clockButtons.HorizontalAlignment = HorizontalAlignment.Center;
-            w.Layout.Children.Add(Retro.Col(clock, clockDate, clockButtons, timerText));
-            w.Footer.Text = "LOCAL TIME / 24H / SILENT TIMER";
+            w = BuildClockModule();
         }
         else if (key == "meter")
         {
@@ -537,20 +584,24 @@ public sealed partial class ConsoleWindow : RetroWindow
         modules.Add(key, w); w.ShowInTaskbar = true; w.Apply(settings);
         w.SourceInitialized += (_, _) =>
         {
-            if (settings.Windows.TryGetValue(key, out var saved)) WindowPlacement.Place(w, saved);
+            if (settings.Windows.TryGetValue(key, out var saved)) WindowPlacement.Place(w, saved, keepReachableTitle: true);
+            else if (reveal) WindowPlacement.PlaceNewModule(this, w, modules.Values);
             else WindowPlacement.OverConsole(this, w);
         };
+        w.IsVisibleChanged += (_, _) => SyncModuleButtons(key);
+        w.StateChanged += (_, _) => SyncModuleButtons(key);
         w.OnPin = SavePositions;
         w.Closing += (_, _) => settings.Windows[key] = WindowPlacement.Read(w);
         w.Closed += (_, _) =>
         {
             modules.Remove(key);
+            SyncModuleButtons(key);
             if (key == "crt") { crtControls.Clear(); crtStateLabel = null; CommitCrtChanges(); }
             if (key == "meter") audioButtons.RemoveAll(b => Window.GetWindow(b) == w);
             if (!shuttingDown) { Save(); Log("INFO", key + " module closed"); }
         };
-        w.LocationChanged += (_, _) => { if (w.IsLoaded) settings.Windows[key] = WindowPlacement.Read(w); };
-        w.Show(); if (key == "crt") SyncCrtControls(); if (reveal) RevealModule(w); Tick(); Log("OK", key + " module opened");
+        w.LocationChanged += (_, _) => { if (w.IsLoaded && w.WindowState == WindowState.Normal) settings.Windows[key] = WindowPlacement.Read(w); };
+        w.Show(); if (key == "crt") SyncCrtControls(); if (reveal) w.Activate(); Tick(); Log("OK", key + " module opened");
     }
     void CommitCrtChanges() { crtSaveTimer.Stop(); Save(); }
     void SyncCrtControls()
@@ -637,42 +688,71 @@ public sealed partial class ConsoleWindow : RetroWindow
                 var r = WindowPlacement.NativeBounds(w); var dpi = VisualTreeHelper.GetDpi(w);
                 return w.IsVisible && w.WindowState == WindowState.Normal && r.Width >= w.Width * dpi.DpiScaleX - 2 && r.Height >= w.Height * dpi.DpiScaleY - 2;
             }
-            bool BesideConsole(RetroWindow w) => WindowPlacement.WorkArea(this).Contains(WindowPlacement.NativeBounds(w)) && !WindowPlacement.NativeBounds(this).IntersectsWith(WindowPlacement.NativeBounds(w));
             checks["mainBounds"] = Bounds(this);
             checks["startupMeterBounds"] = Bounds(modules["meter"]);
+            Rect mainBefore = WindowPlacement.NativeBounds(this), meterBefore = WindowPlacement.NativeBounds(modules["meter"]);
             Click("+ CRT settings"); await Task.Delay(200);
             checks["crtBounds"] = Bounds(modules["crt"]);
             checks["crtButtonCreatesUsableNativeWindow"] = Usable(modules["crt"]);
-            checks["crtButtonRevealsBesideConsole"] = BesideConsole(modules["crt"]);
+            checks["crtOnScreenWithoutRetilingOthers"] = WindowPlacement.WorkArea(modules["crt"]).Contains(WindowPlacement.NativeBounds(modules["crt"])) &&
+                WindowPlacement.NativeBounds(this) == mainBefore && WindowPlacement.NativeBounds(modules["meter"]) == meterBefore;
             checks["crtActivated"] = modules["crt"].IsActive;
-            Click("SPAWN METER"); await Task.Delay(200);
+            var firstMeter = modules["meter"];
+            Click("SPAWN METER");
+            checks["visibleMeterButtonHides"] = !firstMeter.IsVisible && AutomationProperties.GetItemStatus(FindButton("METER")) == "OFF";
+            Click("METER"); await Task.Delay(200);
             checks["meterBounds"] = Bounds(modules["meter"]);
             checks["spawnMeterShowsUsableNativeWindow"] = Usable(modules["meter"]);
-            checks["meterButtonRevealsBesideConsole"] = BesideConsole(modules["meter"]);
+            checks["meterReusesPositionAndAllButtonStates"] = ReferenceEquals(firstMeter, modules["meter"]) &&
+                WindowPlacement.NativeBounds(firstMeter) == meterBefore && AutomationProperties.GetItemStatus(FindButton("SPAWN METER")) == "ON";
             checks["meterActivated"] = modules["meter"].IsActive;
             checks["modulesDiscoverableInTaskbar"] = modules.Values.All(w => w.ShowInTaskbar);
-            var firstMeter = modules["meter"];
-            Click("SPAWN METER"); await Task.Delay(100);
-            checks["repeatMeterCallReusesWindow"] = ReferenceEquals(firstMeter, modules["meter"]);
+            Click("+ clock module"); checks["clockNavHides"] = !modules["clock"].IsVisible;
+            Click("SHOW CLOCK"); checks["clockPanelRestores"] = Usable(modules["clock"]);
+            Click("+ modules"); checks["modulesPanelOpens"] = section == "modules";
+            Click("+ modules"); checks["modulesPanelReturns"] = section == "local";
             Click("HIDE ALL"); Click("SPAWN METER"); await Task.Delay(100);
-            checks["hiddenMeterRevealed"] = Usable(modules["meter"]) && BesideConsole(modules["meter"]);
+            checks["hiddenMeterRevealed"] = Usable(modules["meter"]) && WindowPlacement.NativeBounds(firstMeter) == meterBefore;
             modules["meter"].WindowState = WindowState.Minimized;
             Click("SPAWN METER"); await Task.Delay(100);
             checks["minimizedMeterRestored"] = Usable(modules["meter"]);
             modules["crt"].Close(); Click("+ CRT settings"); await Task.Delay(100);
-            checks["closedCrtRecreatedByButton"] = Usable(modules["crt"]) && BesideConsole(modules["crt"]);
+            checks["closedCrtRecreatedByButton"] = Usable(modules["crt"]) && WindowPlacement.WorkArea(modules["crt"]).Contains(WindowPlacement.NativeBounds(modules["crt"]));
+            Click("CRT SET"); checks["secondCrtButtonHides"] = !modules["crt"].IsVisible;
             Click("HIDE ALL"); Click("CRT SET"); await Task.Delay(100);
             checks["localToolsCrtButtonReveals"] = Usable(modules["crt"]);
             Click("SPAWN METER");
             var moved = modules["meter"]; var mainRect = WindowPlacement.NativeBounds(this);
-            WindowPlacement.Place(moved, new(mainRect.X + mainRect.Width + 12, mainRect.Y, true));
-            Click("SPAWN METER"); await Task.Delay(100);
-            checks["externalMeterRecalledAndPinPreserved"] = BesideConsole(moved) && moved.Topmost;
+            WindowPlacement.Place(moved, new(mainRect.Right + 80, mainRect.Top + 55, true));
+            var custom = WindowPlacement.NativeBounds(moved);
+            Click("SPAWN METER"); Click("SPAWN METER"); await Task.Delay(100);
+            checks["customMeterPositionAndPinRestored"] = Usable(moved) && WindowPlacement.NativeBounds(moved) == custom && moved.Topmost;
+            // Park the meter across a work-area edge. Its title is reachable on this desktop
+            // regardless of whether another physical display continues past that edge.
+            void MoveMeter(Point to) => DragCheckPosition(new System.Windows.Interop.WindowInteropHelper(moved).Handle, IntPtr.Zero, (int)to.X, (int)to.Y, 0, 0, 0x0015);
+            var work = WindowPlacement.WorkArea(this);
+            MoveMeter(new Point(work.Right - custom.Width / 2, work.Top + 36));
+            var crossingEdge = WindowPlacement.NativeBounds(moved);
+            Click("METER"); Click("METER");
+            checks["togglingDoesNotClampReachableMonitorEdge"] = WindowPlacement.NativeBounds(moved) == crossingEdge;
+            moved.Close(); Click("METER"); moved = modules["meter"];
+            checks["recreatedMeterRestoresReachableMonitorEdge"] = WindowPlacement.NativeBounds(moved) == crossingEdge && moved.Topmost;
+            MoveMeter(new Point(-90000, -90000)); Click("METER"); Click("METER");
+            checks["togglingRecoversUnreachableTitle"] = WindowPlacement.WorkArea(moved).Contains(WindowPlacement.NativeBounds(moved));
+            MoveMeter(custom.TopLeft);
             moved.Topmost = false;
             WindowState = WindowState.Minimized; await Task.Delay(100);
             checks["modulesIndependentOfMainMinimize"] = Usable(modules["meter"]) && Usable(modules["crt"]);
             WindowState = WindowState.Normal;
             foreach (var key in new[] { "crt", "meter" }) Capture(modules[key], Path.Combine(directory, key + ".png"));
+            ShowModule("clock", false);
+            CheckGroupDrag(checks);
+            // Negative monitor coordinates, 150% DPI, and the inclusive arranged gutter.
+            var anchor = new Rect(-900, -100, 600, 400);
+            checks["fourEdgesAndOverlappingWindowAttach"] = new[] { new Rect(-282, 0, 100, 80), new Rect(-1018, 0, 100, 80),
+                new Rect(-800, -198, 100, 80), new Rect(-800, 318, 100, 80), new Rect(-750, 40, 100, 80) }.All(r => ModuleLayout.Attached(anchor, r, 18));
+            checks["outsideGutterAndCornerDoNotAttach"] = !ModuleLayout.Attached(anchor, new(-281, 0, 100, 80), 18) &&
+                !ModuleLayout.Attached(anchor, new(-282, 318, 100, 80), 18);
             checks["passed"] = checks.Where(x => x.Value is bool).All(x => x.Value is true);
             File.WriteAllText(Path.Combine(directory, "module-checks.json"), JsonSerializer.Serialize(checks, new JsonSerializerOptions { WriteIndented = true }));
             Application.Current.Shutdown(checks["passed"] is true ? 0 : 1);
@@ -790,6 +870,7 @@ static class Checks
             foreach (var test in RoutingChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
             foreach (var test in LauncherChecks.Run()) Check(test.Key, test.Value);
             foreach (var test in UpdaterChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
+            foreach (var test in SecurityRadarChecks.Run().GetAwaiter().GetResult()) Check(test.Key, test.Value);
             using var routes = new WindowsOutputRoutes(); results["nativeOutputs"] = routes.List();
             results["nativeDefaults"] = Enumerable.Range(0, 3).Select(routes.Default).ToArray();
             var probe = new SystemProbe(); probe.Read(); Thread.Sleep(1200); var p = probe.Read(); results["systemRead"] = p; Check("systemValuesValid", p.Cpu is >= 0 and <= 100 && p.Ram is >= 0 and <= 100 && p.Disk is >= 0 and <= 100);

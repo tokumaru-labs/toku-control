@@ -29,7 +29,7 @@ you trust; release assets include a SHA-256 checksum file.
 | Area | What it does |
 | --- | --- |
 | Audio | Master playback volume, mute, device scan and explicit default output switching. Select an output, then press `SET OUTPUT`. |
-| Clock | Large LCD-style hours/minutes, smaller seconds, date and silent 25/50-minute timers. |
+| Clock | LCD time/date, a 5-minute-step duration wheel, countdown bar and a growing Nemumaru hacker room. |
 | Audio meter | Endpoint peak levels, with stereo L/R where supported. This is a peak meter, not a spectrum analyzer or per-app mixer. |
 | System pulse | CPU/RAM history, system-drive capacity use, Windows/build, CPU, RAM, graphics and active monitor details. |
 | Modules | `SHOW ALL`, `GRID` and `RECALL` place the three equal-width modules in a vertical column to the right of the main window. |
@@ -39,8 +39,22 @@ you trust; release assets include a SHA-256 checksum file.
 | Event log | Operation results, with explicit export using `SAVE`. |
 | Updates | Startup checks for new stable versions; `+ updates` opens manual checking and the startup-check preference. `YES / UPDATE` downloads, verifies, updates and restarts. |
 
-Drag the main title bar to move visible, non-minimized modules with it. Each
-small window can also be moved independently. `P` / `PIN` keeps a module on top.
+In the Clock Module, use the selector above the artwork to switch among **部屋** (room), **TRACE 端末** (terminal), and **宵環曼荼羅** (mandala). STAGE reflects earned rest days at 0, 1, 7 and 30 days. The clock’s Radar panel shows the last manual observation of protection, persistence, authentication and network sources. Select a group to inspect the underlying evidence and verification steps. Switching keeps the running timer and the earned days. Open **DETAIL** to compare the last six timer attempts in this app session: time used versus time planned, outcome, and matching numbered console entries. Use **← CLOCK** to return. Only the first start can type out. Reopening, cancellation and completion show immediate results.
+
+The optional **20/5 ▶** button starts silent 20-minute focus and 5-minute rest periods that automatically alternate until RESET or exit. A completed break earns a local-day round; only the first completed rest of the day reveals another section of the museum painting. A missed entire subsequent phase stops the cycle without backfilling.
+
+Individual clock, audio meter and CRT buttons toggle their windows. A filled dot
+means visible. Reopening restores the module's position and pin. Click `+ modules`
+again to return to the main dashboard.
+Dragging the main title bar moves only visible, normal modules that overlap the console
+or lie alongside one of its edges within the 12-DIP layout gap at drag start.
+A detached module stays put. Move it back beside the console to reattach it for
+the next drag. `P` / `PIN` keeps a module on top.
+
+Choose 5–120 minutes with the wheel, a vertical swipe or drag, the arrow keys, or a tap above or below the selected time.
+**START** begins a silent break and **RESET** cancels it. The timer continues while the clock window is hidden or closed.
+Completing a break earns at most one growth day per local finish date. The generated room art changes at days 1, 7 and 30.
+Growth is stored locally up to day 365. Exiting the app ends an unfinished timer.
 Closing the main window exits the application; closing a module only closes that module.
 
 Click a Quick Launch button to open its tool normally. For **Command Prompt,
@@ -139,6 +153,31 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Compile-CrtShade
 ```
 
 This uses the Windows `d3dcompiler_47.dll`; no extra shader compiler package is required.
+
+## Security Radar (review feature)
+
+Intel Stream, below, is an independent opt-in news reader. The radar itself stays offline.
+
+The **security radar** navigation opens a read-only, manual Windows inspection
+window with an ATT&CK map, protection state, persistence comparisons,
+authentication events and TCP/UDP snapshots. It needs no paid service or elevation.
+See [coverage, limits, provenance and checks](docs/SECURITY-RADAR.md).
+
+## Intel Stream (review feature)
+
+Open **+ intel stream**, check the sources you want, then enable **オンライン取得**.
+The window starts offline each time. It fetches only checked feeds: [Hacker News](https://github.com/HackerNews/API)
+top stories, [JPCERT/CC](https://www.jpcert.or.jp/rss/) advisories and weekly reports, and the
+[Hugging Face Blog](https://huggingface.co/blog/feed.xml) including community authors.
+Checking feeds needs no API key or subscription. Headlines advance independently of fetching;
+click one to pause, inspect the destination, open the original in your browser, or save it.
+
+While enabled and open, each checked source refreshes every 15 minutes. Turning a source off,
+disabling the reader, or closing the window cancels its requests. **CACHE** and **あとで読む**
+work offline with locally stored headline metadata (up to 32 per source and 64 bookmarks).
+Full articles open only on request; no article bodies, telemetry or PC diagnostics are transmitted
+by the reader. News is not a finding about this computer. Failed fetches show their status and
+the last successful fetch time separately. HN timestamps describe the submission, not necessarily publication.
 
 ## License
 
