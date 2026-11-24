@@ -12,9 +12,9 @@ TOKU CONTROL puts playback volume, output switching, a digital clock, peak
 meters, and Windows system/display information into a compact local console.
 Blue title bars, green LCD digits and adjustable CRT effects are part of the interface.
 
-**Release and source status.** The downloadable Windows ZIP is [v0.3.0](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.3.0). The controls below describe the development source. Security Radar, Defender history, Intel Stream, module docking, the rest-clock themes and 20/5 timer are development features introduced after that release.
+**[Version 0.4.0 for Windows](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.4.0)** adds Security Radar, local Defender history, optional Autorunsc comparisons, Intel Stream, detachable modules and three rest-clock themes with a 20/5 timer. From v0.3.0, open **+ updates** and choose **YES / UPDATE**.
 
-### Compare startup entries with Autorunsc (development source)
+### Compare startup entries with Autorunsc
 
 Open **Security Radar → Autorunsc**. Choose **CSV読込** to read an existing local Autorunsc CSV, or **EXEを選んで取得** to select the Microsoft-supplied Autorunsc 14.3 x64 or x86 executable and collect once. Get it separately from [Microsoft Sysinternals](https://learn.microsoft.com/en-us/sysinternals/downloads/autoruns) and review Microsoft's first-run license prompt yourself. Each executable is checked against a known SHA-256 locally. Collection uses your normal account and the fixed options `-nobanner -a * -c`. It requests no VirusTotal lookup, upload, signature lookup or repair. Windows may resolve a network path already present in a registration during collection. CSV import only reads the selected file and treats all entry paths as text. A temporary verified executable copy is removed after the process exits.
 
@@ -162,16 +162,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Compile-CrtShade
 
 This uses the Windows `d3dcompiler_47.dll`; no extra shader compiler package is required.
 
-## Security Radar (review feature)
+## Security Radar
 
-Intel Stream, below, is an independent opt-in news reader. The radar itself stays offline.
+Intel Stream, below, fetches news only when enabled. The built-in Radar reads Windows data locally.
 
 The **security radar** navigation opens a read-only, manual Windows inspection
 window with an ATT&CK map, protection state, persistence comparisons,
 authentication events and TCP/UDP snapshots. It needs no paid service or elevation.
 See [coverage, limits, provenance and checks](docs/SECURITY-RADAR.md).
 
-## Intel Stream (review feature)
+## Intel Stream
 
 Open **+ intel stream**, check the sources you want, then enable **オンライン取得**.
 The window starts offline each time. It fetches only checked feeds: [Hacker News](https://github.com/HackerNews/API)

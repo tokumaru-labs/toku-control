@@ -157,7 +157,6 @@ not a claim that the separate v0.2 application's Windows blocking was validated.
 - Windows CI builds self-contained output and runs deterministic/WPF fixture
   checks with repository read permission. Only fixture reports/screenshots upload.
 
-Rollback: close the candidate and run the prior installed app, or revert the
-feature commit before merging. No host security settings, audit policy, services,
-tasks, autoruns or firewall rules require restoration. Merge/release remains a
-separate owner decision.
+To return to an earlier portable version, close TOKU CONTROL and extract that
+release into a separate folder. The built-in Radar does not change host security
+settings, audit policy, services, tasks, startup entries or firewall rules.
