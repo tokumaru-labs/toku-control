@@ -8,6 +8,14 @@
 
 *実際のWPF画面をプレビューモードで描画。紹介画像のPC情報・音声データはデモ値です。*
 
+**配布版と開発版について。** ダウンロードできるWindows版は [v0.3.0](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.3.0) です。以下の操作説明は開発中のソースに対応しています。Security Radar、Defender検出履歴、Intel Stream、小窓の着脱、休憩時計のテーマと20/5タイマーはv0.3.0の後に加わりました。
+
+### Autorunscで自動起動項目を比較する（開発版）
+
+**Security Radar → Autorunsc** を開きます。保存済みのローカルCSVを開くときは **CSV読込**、このPCを1回だけ調べるときは **EXEを選んで取得** を選びます。実行には [Microsoft Sysinternals](https://learn.microsoft.com/ja-jp/sysinternals/downloads/autoruns) から別途入手した Autorunsc 14.3（x64またはx86）を使います。初回の利用条件はご自身で確認してください。アプリは実行ファイルのSHA-256をローカルで照合し、通常権限で `-nobanner -a * -c` を指定します。VirusTotal照会、ファイル送信、署名のオンライン照会、自動修復は行いません。照合済みの一時コピーは処理終了時に削除します。
+
+**比較基準にする** を押し、同じPC・アカウント・取得条件でもう一度読み込むと、登録の追加・削除・変更前後を確認できます。取得範囲はアカウント権限などに左右されます。中止や失敗時は直前の結果と基準を保持し、この画面を閉じると両方を破棄します。通常のRadar更新ではAutorunscは起動しません。手動で用意したCSVは元の場所に残ります。
+
 ## 起動
 
 1. [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest)からWindows x64用のZIPを取得。

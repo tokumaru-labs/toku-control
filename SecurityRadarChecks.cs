@@ -145,6 +145,7 @@ internal static class SecurityRadarChecks
         result["radar trusted fixed probe without elevation or policy bypass"] = Path.IsPathFullyQualified(info.FileName) && !info.UseShellExecute && info.CreateNoWindow && info.Verb != "runas" && info.ArgumentList.Contains("-NoProfile") && !info.ArgumentList.Contains("-ExecutionPolicy") && !info.Environment["PSModulePath"]!.Contains("Users", StringComparison.OrdinalIgnoreCase);
         result["radar all fixed probes fit Windows command line on CRLF checkouts"] = Enum.GetValues<RadarSource>().All(source =>
             WindowsRadarProbe.StartInfo(source).ArgumentList.Last().ReplaceLineEndings("\r\n").Length <= 15000);
+        foreach (var check in await AutorunscChecks.Run()) result[check.Key] = check.Value;
         return result;
     }
     public static int RunCli(string[] args, bool live)
@@ -198,6 +199,25 @@ public sealed partial class ConsoleWindow
             Descendants<Button>(mainGuide).Single(b => Equals(b.Content, "閉じる")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             SelectSection("security"); var first = radarWindow!; SelectSection("security");
             first.SourcesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var autorunscButton = Descendants<Button>(first.Layout).Single(b => Equals(b.Content, "Autorunsc"));
+            autorunscButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var optional = first.OwnedWindows.OfType<AutorunscWindow>().Single();
+            checks["autorunsc opens without collecting in preview"] = optional.IsVisible && !optional.CanCollect && optional.DisplayedRows == 0 && first.Session.Current.Count == 0;
+            optional.Close();
+            var importWindow = new AutorunscWindow(false) { Owner = first };
+            importWindow.Show();
+            var fixture = Path.Combine(directory, "autorunsc-fixture.csv");
+            await File.WriteAllTextAsync(fixture, AutorunscChecks.Header + AutorunscChecks.First);
+            await importWindow.ReadFile(Path.GetFullPath(fixture), false);
+            bool initialRows = importWindow.DisplayedRows == 1;
+            importWindow.SetReference();
+            await File.WriteAllTextAsync(fixture, AutorunscChecks.Header + AutorunscChecks.First.Replace("sample.exe", "updated.exe"));
+            await importWindow.ReadFile(Path.GetFullPath(fixture), false);
+            checks["autorunsc imported CSV baseline and changed rows"] = initialRows && importWindow.DisplayedRows == 2 && importWindow.StatusText.Contains("差分 1 件");
+            await File.WriteAllTextAsync(fixture, "incomplete");
+            await importWindow.ReadFile(Path.GetFullPath(fixture), false);
+            checks["autorunsc failed read keeps last result"] = importWindow.StatusText.Contains("取得失敗") && importWindow.DisplayedRows == 2;
+            importWindow.Close(); File.Delete(fixture);
             var priorDetail = first.DetailText;
             GuideButton(first).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var radarGuide = first.OwnedWindows.OfType<QuickGuideWindow>().Single();
