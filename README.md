@@ -12,6 +12,14 @@ TOKU CONTROL puts playback volume, output switching, a digital clock, peak
 meters, and Windows system/display information into a compact local console.
 Blue title bars, green LCD digits and adjustable CRT effects are part of the interface.
 
+**Release and source status.** The downloadable Windows ZIP is [v0.3.0](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.3.0). The controls below describe the development source. Security Radar, Defender history, Intel Stream, module docking, the rest-clock themes and 20/5 timer are development features introduced after that release.
+
+### Compare startup entries with Autorunsc (development source)
+
+Open **Security Radar → Autorunsc**. Choose **CSV読込** to read an existing local Autorunsc CSV, or **EXEを選んで取得** to select the Microsoft-supplied Autorunsc 14.3 x64 or x86 executable and collect once. Get it separately from [Microsoft Sysinternals](https://learn.microsoft.com/en-us/sysinternals/downloads/autoruns) and review Microsoft's first-run license prompt yourself. Each executable is checked against a known SHA-256 locally. Collection uses your normal account and the fixed options `-nobanner -a * -c`. It requests no VirusTotal lookup, upload, signature lookup or repair. Windows may resolve a network path already present in a registration during collection. CSV import only reads the selected file and treats all entry paths as text. A temporary verified executable copy is removed after the process exits.
+
+Choose **比較基準にする** to retain the current rows, then read a second snapshot from the same machine, account and collection scope. Added, removed and changed registrations appear with their observed values. Access restrictions can limit the inventory. Cancelling or failing a read keeps the last result and reference. Closing this window discards both. The standard Radar refresh does not run Autorunsc. Saved CSV files remain under your control.
+
 ## Run
 
 1. Download the Windows x64 ZIP from [Releases](https://github.com/tokumaru-labs/toku-control/releases/latest).
