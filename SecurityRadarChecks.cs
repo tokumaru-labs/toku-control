@@ -178,6 +178,22 @@ public sealed partial class ConsoleWindow
         Directory.CreateDirectory(directory); var checks = new Dictionary<string, object>();
         try
         {
+            var aboutButton = Descendants<Button>(Layout).Single(b => Equals(b.Content, "このアプリについて"));
+            aboutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var about = OwnedWindows.OfType<AboutWindow>().Single();
+            about.UpdateLayout();
+            var aboutLabels = Descendants<TextBlock>(about).ToArray();
+            var officialLink = aboutLabels.SelectMany(t => t.Inlines.OfType<System.Windows.Documents.Hyperlink>()).Single();
+            checks["about credits the developer and preserves the license"] = about.IsVisible &&
+                aboutLabels.Any(t => t.Text.Contains("開発元　Tokumaru Labs")) && aboutLabels.Any(t => t.Text.Contains("GPL-3.0-only"));
+            checks["about shows the official HTTPS destination without launching from preview"] =
+                officialLink.NavigateUri.AbsoluteUri == "https://tokumaru-labs.github.io/" && !officialLink.IsEnabled;
+            aboutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["about reuses its window"] = OwnedWindows.OfType<AboutWindow>().Single() == about;
+            Capture(about, Path.Combine(directory, "about.png"));
+            Descendants<Button>(about).Single(b => Equals(b.Content, "閉じる")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            checks["closing about returns to the console"] = IsVisible && !about.IsVisible;
+
             Button GuideButton(RetroWindow host) => Descendants<Button>(host.Layout).Single(b => Equals(b.Content, "使い方"));
             GuideButton(this).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var mainGuide = OwnedWindows.OfType<QuickGuideWindow>().Single();

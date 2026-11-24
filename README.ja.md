@@ -8,7 +8,9 @@
 
 *実際のWPF画面をプレビューモードで描画。紹介画像のPC情報・音声データはデモ値です。*
 
-**[Windows版 v0.4.0](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.4.0)** で、Security Radar、Defender検出履歴、任意のAutorunsc比較、Intel Stream、小窓の着脱、休憩時計の3テーマと20分集中／5分休憩のタイマーが使えます。v0.3.0からは **+ updates → YES / UPDATE** で更新できます。
+**[Windows版 v0.4.1](https://github.com/tokumaru-labs/toku-control/releases/tag/v0.4.1)** では、メイン画面の「使い方」の隣にある **「このアプリについて」** から、開発元のTokumaru Labsと公式サイトを確認できます。v0.3.0以降からは **+ updates → YES / UPDATE** で更新できます。
+
+v0.4.0で、Security Radar、Defender検出履歴、任意のAutorunsc比較、Intel Stream、小窓の着脱、休憩時計の3テーマと20分集中／5分休憩のタイマーが加わりました。
 
 ### Autorunscで自動起動項目を比較する
 
