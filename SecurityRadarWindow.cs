@@ -38,7 +38,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
         ShowInTaskbar = true;
         RefreshButton = Retro.Button("READ / REFRESH", "このPCの状態を読み取る。設定変更・昇格・送信は行いません", () => Reading = RefreshAsync());
         CancelButton = Retro.Button("CANCEL", "進行中の読み取りを中止", () => cancellation?.Cancel());
-        ReferenceButton = Retro.Button("SET REFERENCE", "取得済みの永続化4項目を比較基準に固定。安全だと承認する操作ではありません", () => { if (session.SetReference()) Render(); });
+        ReferenceButton = Retro.Button("SET REFERENCE", "取得済みの永続化4項目を比較基準に固定。安全だと承認する操作ではありません", () => { session.SetReference(); });
         var header = Retro.Col(Retro.Label(demo ? "DEMO / 架空のデータ・このPCの診断ではありません" : "LOCAL INSPECTION / 読み取り専用・手動更新", demo ? Retro.Amber : Retro.Green, 15),
             Retro.Label("保護状態 → 永続化の変化 → 認証 → 通信   |   攻撃手法との対応は調査の手がかりです", Retro.Text, 12),
             Retro.Row(RefreshButton, CancelButton, ReferenceButton), status, referenceStatus);
@@ -62,6 +62,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
         Render();
     }
     internal void SetView(bool sources) { sourceView = sources; selected = sources ? 0 : -1; Render(); }
+    internal void ShowSource(RadarSource source) { sourceView = true; selected = (int)source; Render(); }
     internal void SelectCard(int index) { selected = index; Render(); }
     internal async Task RefreshAsync()
     {
@@ -123,6 +124,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
         {
             var assessment = Assessment(source);
             text.AppendLine("━━ " + RadarKnowledge.Title(source) + " ━━").AppendLine(RadarKnowledge.Signal(assessment.Signal)).AppendLine(assessment.Summary).AppendLine(assessment.Explanation);
+            text.AppendLine("次の確認").AppendLine(RadarKnowledge.NextCheck(source, assessment.Signal)).AppendLine();
             if (session.Current.TryGetValue(source, out var read))
             {
                 text.AppendLine("取得: " + read.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz")).AppendLine(RadarKnowledge.Coverage(read.Coverage)).AppendLine(read.Note).AppendLine();
@@ -168,6 +170,7 @@ public sealed partial class ConsoleWindow
     {
         if (radarWindow != null) { if (radarWindow.WindowState == WindowState.Minimized) radarWindow.WindowState = WindowState.Normal; WindowPlacement.OverConsole(this, radarWindow); radarWindow.Activate(); return; }
         radarSession ??= new(preview ? new DemoRadarProbe() : new WindowsRadarProbe());
+        clockRadar?.Bind(radarSession);
         radarWindow = new(radarSession, preview);
         radarWindow.Apply(settings);
         radarWindow.Closed += (_, _) => radarWindow = null;

@@ -11,6 +11,19 @@ the same evidence by collector.
 The radar requires no internet, extra packages, paid service or administrator
 prompt and never changes Windows security settings.
 
+## Practical use
+The Clock Module in TRACE mode shows four groups from the same manual Radar session.
+Each opens the underlying source, including capture time, evidence and a suggested
+verification step. A mixed group keeps a known review flag visible alongside unknown
+coverage. DEMO data is labelled. Opening the clock or the evidence does not collect.
+
+For a planned installation, review the four persistence inventories, set the reference
+when available, and refresh in the same running app after installation. Compare changed
+names, arguments and paths with the software installed. Investigate unexplained additions
+in Windows Security. A reference taken after an incident describes the present state only.
+For connection questions, inspect TCP process, PID, state and address. Repeat the read
+after closing the known application. UDP rows describe local endpoints.
+
 ## Coverage
 
 | Stage | Source | Observed scope |
