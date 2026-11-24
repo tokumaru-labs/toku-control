@@ -79,7 +79,7 @@ internal sealed class IntelWindow : RetroWindow
         Pause = Retro.Button("Ⅱ 一時停止", "取得は継続し、見出しの流れだけ停止・再開", () => { Paused = !Paused; if (!Paused) Advance(); Controls(); });
         Refresh = Retro.Button("更新", "選んだ配信だけ再取得（最短1分間隔）", () => { foreach (var s in sources.Where(Allowed)) Start(s, true); });
         var toolbar = new WrapPanel { Margin = new Thickness(6, 3, 6, 0) };
-        foreach (var b in new[] { Stream, Cache, Saved, Pause, Refresh }) toolbar.Children.Add(b);
+        foreach (var b in new[] { Stream, Cache, Saved, Pause, Refresh, QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Intel) }) toolbar.Children.Add(b);
         DockPanel.SetDock(toolbar, Dock.Top); Layout.Children.Add(toolbar);
         var top = new Border { Child = bar, Margin = new Thickness(8, 2, 8, 2) }; DockPanel.SetDock(top, Dock.Top); Layout.Children.Add(top);
 

@@ -41,7 +41,7 @@ internal sealed class SecurityRadarWindow : RetroWindow
         ReferenceButton = Retro.Button("SET REFERENCE", "取得済みの永続化4項目を比較基準に固定。安全だと承認する操作ではありません", () => { session.SetReference(); });
         var header = Retro.Col(Retro.Label(demo ? "DEMO / 架空のデータ・このPCの診断ではありません" : "LOCAL INSPECTION / 読み取り専用・手動更新", demo ? Retro.Amber : Retro.Green, 15),
             Retro.Label("保護状態 → 永続化の変化 → 認証 → 通信   |   攻撃手法との対応は調査の手がかりです", Retro.Text, 12),
-            Retro.Row(RefreshButton, CancelButton, ReferenceButton), status, referenceStatus);
+            Retro.Row(RefreshButton, CancelButton, ReferenceButton, QuickGuideWindow.Entry(this, QuickGuideWindow.Topic.Radar)), status, referenceStatus);
         header.Margin = new Thickness(10, 8, 10, 6); DockPanel.SetDock(header, Dock.Top); Layout.Children.Add(header);
         var grid = new Grid { Margin = new Thickness(8) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(340) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
