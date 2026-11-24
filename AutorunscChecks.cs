@@ -45,6 +45,8 @@ internal static class AutorunscChecks
         }
         checks["autorunsc rejects UNC device relative and alternate stream paths"] =
             Refused(@"\\server\share\fixture.csv") && Refused(@"\\?\C:\file") && Refused("relative.csv") && Refused(@"C:\file:stream");
+        try { AutorunscReader.CreateWorkingDirectory(@"\\server\share"); checks["autorunsc staging rejects redirected network temp"] = false; }
+        catch (InvalidDataException) { checks["autorunsc staging rejects redirected network temp"] = true; }
         using var stream = new MemoryStream(new byte[20]);
         try { await AutorunscReader.ReadBounded(stream, 16, default); checks["autorunsc bounded read"] = false; }
         catch (InvalidDataException) { checks["autorunsc bounded read"] = true; }

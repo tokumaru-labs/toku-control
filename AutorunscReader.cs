@@ -48,6 +48,12 @@ internal static class AutorunscReader
         return bytes.ToArray();
     }
 
+    internal static DirectoryInfo CreateWorkingDirectory(string parent)
+    {
+        var local = LocalFile(Path.TrimEndingDirectorySeparator(parent));
+        return Directory.CreateDirectory(Path.Combine(local, "TokuControl-Autorunsc-" + Guid.NewGuid().ToString("N")));
+    }
+
     internal static ProcessStartInfo StartInfo(string verifiedCopy)
     {
         var start = new ProcessStartInfo(verifiedCopy)
@@ -79,7 +85,7 @@ internal static class AutorunscReader
             throw new InvalidDataException("確認済みの Microsoft 配布版 14.3 と一致しません。CSV 読込も利用できます。");
 
         // Keep executable-directory DLL lookup away from the selected download directory.
-        var scratch = Directory.CreateTempSubdirectory("TokuControl-Autorunsc-");
+        var scratch = CreateWorkingDirectory(Path.GetTempPath());
         string exe = Path.Combine(scratch.FullName, name);
         try
         {

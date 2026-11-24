@@ -48,6 +48,7 @@ internal sealed class AutorunscWindow : Window
         var header = Retro.Col(Retro.Label("自動起動項目 / AUTORUNSC", Retro.Green, 16),
             Retro.Label(preview ? "プレビューではこの PC の取得・ファイル読込は無効です。" :
                 "Microsoft から別途入手した EXE で1回取得、または保存済み CSV を読込。初回の利用条件はご自身で確認してください。", Retro.Text, 12),
+            Retro.Label("CSV読込は登録先にアクセスしません。EXE取得では、登録に含まれる共有先をWindowsが参照する場合があります。", Retro.Dim, 12),
             Retro.Label("同じPC・アカウント・取得条件の結果を比較してください。差分は登録内容の変化を示します。", Retro.Text, 12),
             buttons, baselineLabel, status);
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);

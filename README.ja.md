@@ -12,7 +12,7 @@
 
 ### Autorunscで自動起動項目を比較する（開発版）
 
-**Security Radar → Autorunsc** を開きます。保存済みのローカルCSVを開くときは **CSV読込**、このPCを1回だけ調べるときは **EXEを選んで取得** を選びます。実行には [Microsoft Sysinternals](https://learn.microsoft.com/ja-jp/sysinternals/downloads/autoruns) から別途入手した Autorunsc 14.3（x64またはx86）を使います。初回の利用条件はご自身で確認してください。アプリは実行ファイルのSHA-256をローカルで照合し、通常権限で `-nobanner -a * -c` を指定します。VirusTotal照会、ファイル送信、署名のオンライン照会、自動修復は行いません。照合済みの一時コピーは処理終了時に削除します。
+**Security Radar → Autorunsc** を開きます。保存済みのローカルCSVを開くときは **CSV読込**、このPCを1回だけ調べるときは **EXEを選んで取得** を選びます。実行には [Microsoft Sysinternals](https://learn.microsoft.com/ja-jp/sysinternals/downloads/autoruns) から別途入手した Autorunsc 14.3（x64またはx86）を使います。初回の利用条件はご自身で確認してください。アプリは実行ファイルのSHA-256をローカルで照合し、通常権限で `-nobanner -a * -c` を指定します。VirusTotal照会、ファイル送信、署名のオンライン照会、自動修復は行いません。実行時は登録に含まれる共有先をWindowsが参照する場合があります。CSV読込では登録先を文字列として扱い、選んだファイルだけを読みます。照合済みの実行ファイルの一時コピーは処理終了時に削除します。
 
 **比較基準にする** を押し、同じPC・アカウント・取得条件でもう一度読み込むと、登録の追加・削除・変更前後を確認できます。取得範囲はアカウント権限などに左右されます。中止や失敗時は直前の結果と基準を保持し、この画面を閉じると両方を破棄します。通常のRadar更新ではAutorunscは起動しません。手動で用意したCSVは元の場所に残ります。
 
