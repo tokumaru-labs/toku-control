@@ -35,11 +35,13 @@ public static class Program
         if (updateCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var radarCheck = Option("--radar-check-dir");
         if (radarCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
+        var intelCheck = Option("--intel-check-dir") ?? Option("--intel-live-check-dir");
+        if (intelCheck != null && (!preview || string.IsNullOrWhiteSpace(Option("--data-dir")))) return 2;
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Retro.Install(app);
         var data = Option("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TokumaruLabs", "TokuControl");
         var store = new SettingsStore(data);
-        var main = new ConsoleWindow(store, preview, !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"));
+        var main = new ConsoleWindow(store, preview, intelCheck == null && !args.Any(arg => arg is "--capture-dir" or "--module-check-dir" or "--crt-check-dir" or "--layout-check-dir" or "--gallery-dir" or "--update-check-dir" or "--radar-check-dir"));
         app.MainWindow = main;
         var qa = Option("--capture-dir");
         if (qa != null) main.Loaded += async (_, _) => await main.CaptureChecks(qa);
@@ -50,6 +52,8 @@ public static class Program
         if (gallery != null) main.Loaded += async (_, _) => await main.CaptureGallery(gallery);
         if (updateCheck != null) main.Loaded += async (_, _) => await main.CaptureUpdateChecks(updateCheck);
         if (radarCheck != null) main.Loaded += async (_, _) => await main.CaptureRadarChecks(radarCheck);
+        if (intelCheck != null) main.Loaded += async (_, _) => await main.CaptureIntelChecks(intelCheck, args.Contains("--intel-live-check-dir"));
+        else if (args.Contains("--open-intel")) main.Loaded += (_, _) => main.OpenIntel();
         return app.Run(main);
     }
 }
@@ -174,6 +178,7 @@ public sealed partial class ConsoleWindow : RetroWindow
             settings.Windows["main"] = WindowPlacement.Read(this);
             foreach (var window in modules.Values.ToArray()) window.Close();
             radarWindow?.Close();
+            intelWindow?.Close();
             audio.Dispose(); routes.Dispose(); var error = store.Save(settings);
             if (error != null) MessageBox.Show(error + "\n" + store.FilePath, "TOKU CONTROL", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
@@ -194,7 +199,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     Border BuildNavigation()
     {
         var p = new StackPanel { Margin = new Thickness(4) };
-        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("security", "security radar"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
+        foreach (var (key, name) in new[] { ("local", "local options"), ("devices", "devices"), ("audio", "audio"), ("clock", "clock module"), ("system", "system pulse"), ("security", "security radar"), ("intel", "intel stream"), ("launcher", "launcher"), ("modules", "modules"), ("tools", "local tools"), ("settings", "CRT settings"), ("updates", "updates") })
         {
             var b = Retro.Button("+ " + name, name + " を表示", () => SelectSection(key));
             b.HorizontalContentAlignment = HorizontalAlignment.Left; b.Margin = new Thickness(0, 2, 0, 2); b.BorderThickness = new Thickness(0); b.Height = 29;
@@ -208,6 +213,7 @@ public sealed partial class ConsoleWindow : RetroWindow
     void SelectSection(string key)
     {
         if (key == "security") { ShowSecurityRadar(); return; }
+        if (key == "intel") { ShowIntelStream(); return; }
         if (key == "updates") { ShowUpdates(); return; }
         if (key is "clock" or "settings") { ShowModule(key == "clock" ? "clock" : "crt"); return; }
         section = key;

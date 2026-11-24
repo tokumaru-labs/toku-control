@@ -142,10 +142,28 @@ This uses the Windows `d3dcompiler_47.dll`; no extra shader compiler package is 
 
 ## Security Radar (review feature)
 
+Intel Stream, below, is an independent opt-in news reader. The radar itself stays offline.
+
 The **security radar** navigation opens a read-only, manual Windows inspection
 window with an ATT&CK map, protection state, persistence comparisons,
 authentication events and TCP/UDP snapshots. It needs no paid service or elevation.
 See [coverage, limits, provenance and checks](docs/SECURITY-RADAR.md).
+
+## Intel Stream (review feature)
+
+Open **+ intel stream**, check the sources you want, then enable **オンライン取得**.
+The window starts offline each time. It fetches only checked feeds: [Hacker News](https://github.com/HackerNews/API)
+top stories, [JPCERT/CC](https://www.jpcert.or.jp/rss/) advisories and weekly reports, and the
+[Hugging Face Blog](https://huggingface.co/blog/feed.xml) including community authors.
+Checking feeds needs no API key or subscription. Headlines advance independently of fetching;
+click one to pause, inspect the destination, open the original in your browser, or save it.
+
+While enabled and open, each checked source refreshes every 15 minutes. Turning a source off,
+disabling the reader, or closing the window cancels its requests. **CACHE** and **あとで読む**
+work offline with locally stored headline metadata (up to 32 per source and 64 bookmarks).
+Full articles open only on request; no article bodies, telemetry or PC diagnostics are transmitted
+by the reader. News is not a finding about this computer. Failed fetches show their status and
+the last successful fetch time separately. HN timestamps describe the submission, not necessarily publication.
 
 ## License
 
