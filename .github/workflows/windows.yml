@@ -43,6 +43,12 @@ jobs:
           $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-intel-state --intel-check-dir artifacts/ci-intel' -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw 'Intel Stream checks failed' }
           if ((Get-Content artifacts/ci-intel/intel-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing Intel Stream report' }
+      - name: WPF CRT controls and RAW rendering
+        shell: pwsh
+        run: |
+          $p = Start-Process ./artifacts/portable/TokuControl.exe -ArgumentList '--preview --data-dir artifacts/ci-crt-state --crt-check-dir artifacts/ci-crt' -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'CRT checks failed' }
+          if ((Get-Content artifacts/ci-crt/crt-checks.json -Raw | ConvertFrom-Json).passed -ne $true) { throw 'Missing passing CRT report' }
       - name: WPF module toggles and attached-window dragging
         shell: pwsh
         run: |
@@ -64,6 +70,7 @@ jobs:
             artifacts/radar-probe-checks.json
             artifacts/ci-radar/
             artifacts/ci-intel/
+            artifacts/ci-crt/crt-checks.json
             artifacts/ci-mod/
             artifacts/ci-clock/
           retention-days: 7
