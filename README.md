@@ -39,8 +39,13 @@ you trust; release assets include a SHA-256 checksum file.
 | Event log | Operation results, with explicit export using `SAVE`. |
 | Updates | Startup checks for new stable versions; `+ updates` opens manual checking and the startup-check preference. `YES / UPDATE` downloads, verifies, updates and restarts. |
 
-Drag the main title bar to move visible, non-minimized modules with it. Each
-small window can also be moved independently. `P` / `PIN` keeps a module on top.
+Individual clock, audio meter and CRT buttons toggle their windows. A filled dot
+means visible. Reopening restores the module's position and pin. Click `+ modules`
+again to return to the main dashboard.
+Dragging the main title bar moves only visible, normal modules that overlap the console
+or lie alongside one of its edges within the 12-DIP layout gap at drag start.
+A detached module stays put. Move it back beside the console to reattach it for
+the next drag. `P` / `PIN` keeps a module on top.
 Closing the main window exits the application; closing a module only closes that module.
 
 Click a Quick Launch button to open its tool normally. For **Command Prompt,
